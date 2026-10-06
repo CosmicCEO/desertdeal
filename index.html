@@ -56,6 +56,12 @@
     <span id="hud-time" class="hud-chip">0:00</span>
     <button id="btn-undo" class="icon-btn" type="button" aria-label="Undo" title="Undo">↶</button>
     <button id="btn-redeal" class="icon-btn" type="button" aria-label="New deal" title="New deal">↻</button>
+    <button id="btn-snd" class="snd-btn" type="button" aria-label="Sound settings" aria-haspopup="true" aria-expanded="false">♪</button>
+    <div id="snd-panel" class="snd-panel" role="dialog" aria-label="Sound" hidden>
+      <label class="snd-row"><input id="set-mute" type="checkbox"><span>Mute</span></label>
+      <label class="snd-row snd-vol"><span>Volume <b id="set-vol-val">70</b></span><input id="set-vol" type="range" min="0" max="100" step="1"></label>
+      <p class="snd-note">Card slap + desert radio bed (synth). iPhone silent switch is not readable from the web.</p>
+    </div>
   </header>
 
   <div id="table-stage" class="table-stage">
@@ -114,6 +120,7 @@
   </div>
 </section>
 
+<script src="assets/js/sound.js"></script>
 <script src="assets/js/cards.js"></script>
 <script src="assets/js/physics.js"></script>
 <script src="assets/js/game.js"></script>

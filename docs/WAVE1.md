@@ -1,7 +1,7 @@
 # Desert Deal — Wave 1 contract
 
 Playable solo Klondike on a worn picnic-table look. Static site. No build step. No server required.
-**Targets:** desktop landscape + iPhone portrait (~390px), pointer (mouse + touch).
+**Targets:** phone-portrait layout on all devices; Mac/desktop scales that board with the window. Pointer (mouse + touch).
 
 ## Done-when checklist
 
@@ -33,10 +33,11 @@ Playable solo Klondike on a worn picnic-table look. Static site. No build step. 
 - [ ] Autosave / resume mid-game (`localStorage`) — TODO
 - [x] Plays count on home; high score / best time written on win (resume UI stubbed)
 
-### 5. Polish — **later**
-- [ ] Web Audio card slap / shuffle
-- [ ] Sound bar (iOS-friendly), mute/volume persisted
-- [x] Mobile-first (~390px) + desktop scale; tap targets ≥ 44px on chrome
+### 5. Polish — **in progress**
+- [x] Web Audio card slap / shuffle / deal / win (synth)
+- [x] Desert radio bed (synth hiss + chatter burble)
+- [x] Sound bar (iOS-friendly), mute/volume persisted
+- [x] Phone layout everywhere; Mac scales board with window; tap targets ≥ 44px on chrome
 - [x] About screen (Jerod / CosmicCEO; desert-family nod)
 
 ## Layout

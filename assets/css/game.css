@@ -11,13 +11,13 @@
   --terra: #C3623B; --mari: #E9A23B; --gold: #F2B640;
   --sage: #7E9168; --sagel: #C9D3B4; --sand: #E8D7B4; --kraft: #b78a52; --kraft2: #c9a06a;
   --tape: rgba(233,162,59,.62);
-  /* design board (desktop landscape table) */
-  --board-w: 1100px;
-  --board-h: 720px;
-  --card-w: 78px;
-  --card-h: 110px;
-  --fan-y: 26px;
-  --waste-fan: 22px;
+  /* One playfield: phone-portrait Klondike. Mac/desktop scales this board. */
+  --board-w: 390px;
+  --board-h: 620px;
+  --card-w: 48px;
+  --card-h: 68px;
+  --fan-y: 16px;
+  --waste-fan: 14px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bot: env(safe-area-inset-bottom, 0px);
   --safe-l: env(safe-area-inset-left, 0px);
@@ -111,6 +111,7 @@ button, a, input { touch-action: manipulation; }
   background: var(--terra); color: var(--paper); position: sticky; top: 0; z-index: 40;
   min-height: 48px;
 }
+/* sticky creates a containing block for the absolute sound panel */
 .logo {
   font: 1rem Bungee, sans-serif; font-weight: normal; flex: 1;
   text-shadow: 1.5px 1.5px 0 rgba(58,42,30,.35); white-space: nowrap;
@@ -124,6 +125,24 @@ button, a, input { touch-action: manipulation; }
   border: 2px solid var(--ink); color: var(--ink); font-size: 1.15rem;
   cursor: pointer; flex: none; padding: 0; line-height: 1;
 }
+.snd-btn {
+  width: 44px; height: 44px; border-radius: 50%; background: var(--mari);
+  border: 2px solid var(--ink); font-size: 1.15rem; line-height: 1; color: var(--ink);
+  cursor: pointer; flex: none; padding: 0;
+}
+.snd-btn.muted { background: var(--sand); text-decoration: line-through; }
+.snd-panel {
+  position: absolute; top: calc(100% + 6px); right: max(10px, var(--safe-r)); z-index: 60;
+  width: min(280px, calc(100vw - 32px));
+  background: var(--paper); border: 2px solid var(--ink); border-radius: 14px;
+  padding: 6px 14px 10px; box-shadow: 3px 4px 0 rgba(58,42,30,.25);
+}
+.snd-row { display: flex; align-items: center; gap: 12px; min-height: 48px; font-weight: 700; color: var(--ink); }
+.snd-row input[type=checkbox] { width: 26px; height: 26px; min-height: 26px; margin: 0; accent-color: var(--terra); }
+.snd-vol { flex-direction: column; align-items: stretch; gap: 2px; }
+.snd-vol input[type=range] { min-height: 36px; padding: 0; border: 0; background: transparent; accent-color: var(--terra); }
+.snd-note { font-size: .75rem; color: var(--ink2); margin: 0 0 6px; line-height: 1.3; }
+
 
 /* —— table stage (scales whole playfield) —— */
 .table-stage {
@@ -144,7 +163,7 @@ button, a, input { touch-action: manipulation; }
 
 /* —— picnic table surface —— */
 .picnic {
-  position: absolute; inset: 0; border-radius: 18px; overflow: hidden;
+  position: absolute; inset: 0; border-radius: 10px; overflow: hidden;
   border: 3px solid var(--ink); box-shadow: 6px 8px 0 rgba(30,18,10,.35);
 }
 .planks { position: absolute; inset: 0; display: flex; flex-direction: column; }
@@ -199,27 +218,27 @@ button, a, input { touch-action: manipulation; }
 @keyframes antWalkA {
   0%   { transform: translate(0,0) rotate(8deg); opacity: 0; }
   5%   { opacity: .75; }
-  45%  { transform: translate(980px, 40px) rotate(12deg); }
-  50%  { transform: translate(1000px, 55px) rotate(170deg); }
+  45%  { transform: translate(340px, 28px) rotate(12deg); }
+  50%  { transform: translate(350px, 40px) rotate(170deg); }
   95%  { opacity: .75; }
-  100% { transform: translate(80px, 120px) rotate(175deg); opacity: 0; }
+  100% { transform: translate(40px, 90px) rotate(175deg); opacity: 0; }
 }
 @keyframes antWalkB {
   0%   { transform: translate(0,0) rotate(-170deg); opacity: 0; }
   8%   { opacity: .7; }
-  55%  { transform: translate(-1100px, -30px) rotate(-175deg); }
-  60%  { transform: translate(-1120px, -10px) rotate(10deg); }
-  100% { transform: translate(-200px, 60px) rotate(15deg); opacity: 0; }
+  55%  { transform: translate(-380px, -24px) rotate(-175deg); }
+  60%  { transform: translate(-390px, -8px) rotate(10deg); }
+  100% { transform: translate(-60px, 50px) rotate(15deg); opacity: 0; }
 }
 
 /* —— playfield piles —— */
 .playfield {
   position: absolute; inset: 0; z-index: 10;
-  padding: 28px 36px 24px;
-  display: flex; flex-direction: column; gap: 28px;
+  padding: 16px 10px 12px;
+  display: flex; flex-direction: column; gap: 16px;
   pointer-events: none; /* piles opt-in */
 }
-.row { display: flex; gap: 14px; align-items: flex-start; }
+.row { display: flex; gap: 6px; align-items: flex-start; }
 .top-row .spacer { flex: 1; min-width: 12px; }
 .tableau-row { flex: 1; }
 
@@ -298,16 +317,16 @@ button, a, input { touch-action: manipulation; }
   display: flex; flex-direction: column; align-items: center;
 }
 .card-el .corner .rank {
-  font: 700 clamp(11px, 2.4vw, 15px) Bungee, sans-serif;
+  font: 700 11px Bungee, sans-serif;
 }
-.card-el .corner .suit { font-size: clamp(12px, 2.6vw, 16px); line-height: 1; }
+.card-el .corner .suit { font-size: 12px; line-height: 1; }
 .card-el .corner.br {
   left: auto; top: auto; right: 6px; bottom: 5px;
   transform: rotate(180deg);
 }
 .card-el .pip {
   position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%);
-  font-size: clamp(28px, 6vw, 42px); opacity: .92; pointer-events: none;
+  font-size: 22px; opacity: .92; pointer-events: none;
 }
 .card-el.red .rank, .card-el.red .suit, .card-el.red .pip { color: var(--terra); }
 .card-el.black .rank, .card-el.black .suit, .card-el.black .pip { color: var(--ink); }
@@ -377,31 +396,8 @@ button, a, input { touch-action: manipulation; }
 }
 .win-banner .card { max-width: 360px; width: 100%; }
 
-/* —— responsive: phone portrait ~390 —— */
-@media (max-width: 700px) {
-  :root {
-    --board-w: 390px;
-    --board-h: 620px;
-    --card-w: 48px;
-    --card-h: 68px;
-    --fan-y: 16px;
-    --waste-fan: 14px;
-  }
-  .playfield { padding: 16px 10px 12px; gap: 16px; }
-  .row { gap: 6px; }
-  .logo { font-size: .85rem; }
-  .card-el .corner .rank { font-size: 11px; }
-  .card-el .pip { font-size: 22px; }
-  .picnic { border-radius: 10px; }
-}
-
-@media (min-width: 701px) and (max-width: 1100px) {
-  :root {
-    --card-w: 68px;
-    --card-h: 96px;
-    --fan-y: 22px;
-  }
-}
+/* No separate desktop layout — Mac/phone share this board; JS scales .table-scale. */
+.logo { font-size: .85rem; }
 
 @media (prefers-reduced-motion: reduce) {
   .ant-a, .ant-b { animation: none; opacity: .5; }

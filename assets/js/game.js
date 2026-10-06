@@ -24,6 +24,15 @@
   var drag = null;
   var timerId = null;
   var scale = 1;
+  /* Fixed phone-portrait design size (matches :root in game.css). */
+  var BOARD_W = 390;
+  var BOARD_H = 620;
+
+  function sfx(name) {
+    if (!window.DDSound) return;
+    var fn = DDSound[name];
+    if (typeof fn === "function") fn();
+  }
 
   function $(id) { return document.getElementById(id); }
 
@@ -32,7 +41,16 @@
   }
 
   function cardSize() {
-    return { w: cssPx('--card-w') || 78, h: cssPx('--card-h') || 110, fan: cssPx('--fan-y') || 26, wfan: cssPx('--waste-fan') || 22 };
+    return { w: cssPx('--card-w') || 48, h: cssPx('--card-h') || 68, fan: cssPx('--fan-y') || 16, wfan: cssPx('--waste-fan') || 14 };
+  }
+
+  /** Live scale from painted rect (accounts for transform). */
+  function liveScale() {
+    var root = $('table-scale');
+    if (!root) return scale || 1;
+    var r = root.getBoundingClientRect();
+    var s = r.width / BOARD_W;
+    return (isFinite(s) && s > 0) ? s : (scale || 1);
   }
 
   /* —— picnic planks —— */
@@ -84,18 +102,16 @@
     }
   }
 
-  /* —— scaling —— */
+  /* —— scaling: one phone board, uniform scale to fit stage (phone or Mac) —— */
   function updateScale() {
     var stage = $('table-stage');
     var root = $('table-scale');
     if (!stage || !root) return;
-    var bw = cssPx('--board-w') || 1100;
-    var bh = cssPx('--board-h') || 720;
-    // phone CSS may change board size — read computed width of root's style vars via getComputedStyle on :root
     var pad = 8;
     var sw = stage.clientWidth - pad;
     var sh = stage.clientHeight - pad;
-    scale = Math.min(sw / bw, sh / bh, 1.15);
+    // Grow and shrink freely — no desktop-only layout, no artificial 1.15 cap
+    scale = Math.min(sw / BOARD_W, sh / BOARD_H);
     if (!isFinite(scale) || scale <= 0) scale = 1;
     root.style.setProperty('--scale', String(scale));
     root.style.transform = 'scale(' + scale + ')';
@@ -110,9 +126,10 @@
     var scaleRoot = $('table-scale');
     var pr = el.getBoundingClientRect();
     var rr = scaleRoot.getBoundingClientRect();
+    var s = liveScale();
     return {
-      x: (pr.left - rr.left) / scale,
-      y: (pr.top - rr.top) / scale
+      x: (pr.left - rr.left) / s,
+      y: (pr.top - rr.top) / s
     };
   }
 
@@ -265,15 +282,21 @@
     }
 
     mountCards(allCards());
-    // bump play count
     bumpPlays();
     showPlay();
     updateScale();
-    // wait a frame for layout/pile positions
+    sfx('shuffle');
     requestAnimationFrame(function () {
       layoutAll(true);
       updateHud();
       startTimer();
+      // Stagger deal slaps
+      var n = 28;
+      for (var di = 0; di < n; di++) {
+        (function (i) {
+          setTimeout(function () { if (window.DDSound) DDSound.dealOne(i); }, 40 + i * 28);
+        })(di);
+      }
       // TODO: autosave snapshot
     });
   }
@@ -352,6 +375,7 @@
         detail.textContent = 'Score ' + state.score + ' · time ' + formatTime(state.elapsedMs);
       }
       if (banner) banner.hidden = false;
+      sfx('win');
       saveHighIfBetter();
     }
   }
@@ -369,6 +393,7 @@
       }
       state.score = Math.max(0, state.score - 2);
       layoutAll(false);
+      sfx('shuffle');
       updateHud();
       return;
     }
@@ -381,7 +406,7 @@
       flipped.push(card);
     }
     layoutAll(false);
-    // animate top waste card flip
+    sfx('flip');
     var top = flipped[flipped.length - 1];
     if (top && cardMap[top.id]) {
       DDPhysics.flipCard(cardMap[top.id].el, true);
@@ -398,10 +423,11 @@
     for (var i = 0; i < piles.length; i++) {
       var p = piles[i];
       var r = p.getBoundingClientRect();
-      var left = (r.left - rr.left) / scale;
-      var top = (r.top - rr.top) / scale;
-      var w = r.width / scale;
-      var h = r.height / scale;
+      var s = liveScale();
+      var left = (r.left - rr.left) / s;
+      var top = (r.top - rr.top) / s;
+      var w = r.width / s;
+      var h = r.height / s;
       // expand tableau hit height based on cards
       var pid = p.getAttribute('data-pile');
       if (pid && pid.charAt(0) === 't') {
@@ -424,7 +450,7 @@
     drag = DDPhysics.createDragController({
       scaleRoot: $('table-scale'),
       eventRoot: $('table-scale'),
-      getScale: function () { return scale; },
+      getScale: function () { return liveScale(); },
       canDrag: function (el) {
         var id = el.dataset.id;
         var entry = cardMap[id];
@@ -470,6 +496,7 @@
         var moving = cards[0];
 
         if (!target || target === from || target === 'stock') {
+          sfx('bounce');
           return { ok: false };
         }
 
@@ -501,8 +528,12 @@
           }
         }
 
-        if (!ok) return { ok: false };
+        if (!ok) {
+          sfx('bounce');
+          return { ok: false };
+        }
 
+        sfx('slap');
         var positions = computePilePositions(target).slice(-cards.length);
         // layout everyone else immediately; moving stack snaps via physics
         var movingIds = {};

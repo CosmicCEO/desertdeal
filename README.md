@@ -4,9 +4,9 @@ A single-player Klondike solitaire with a worn paper deck, card physics, and loc
 
 Flavor: a dog-eared 52-card pack on weathered planks (grain, knots, sun bleach, flush bolt heads). Coffee stains, clipped corners. Drag, fling, flip. Pause mid-deal and pick it up later.
 
-**Status:** Wave 1 playable scaffold — cards, picnic table, drag/fling physics, Klondike deal + stock flip + basic moves. Save/undo/sound still TODO.
+**Status:** Wave 1 playable scaffold — cards, picnic table, phone layout scaled on Mac, drag/fling physics, Klondike deal + stock flip + basic moves, synth card SFX + radio bed. Save/undo still TODO.
 
-**Designed for desktop and iPhone** (portrait-first phone layout; landscape desktop table).
+**Phone portrait layout on every device** — Mac/desktop scales the same board with the window.
 
 ## Docs
 | Path | What |

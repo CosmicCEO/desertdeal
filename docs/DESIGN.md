@@ -3,9 +3,9 @@
 Sibling of **Desert Ranger** and **Desert Bandit**: desert palette, ink outlines, tape accents. Solo Klondike instead of rooms/reels.
 
 ## Platforms (locked)
-- **Desktop** landscape table (~1280×800): cards ~90–110px tall, room for 7 tableau columns.
-- **iPhone** portrait-first (~390×844): playfield scales via CSS variables + `transform: scale` on a fixed board; stock/waste/foundations stay thumb-reachable; no landscape required.
-- Pointer events for mouse + touch. `viewport-fit=cover` + safe-area insets for notch/home bar.
+- **One layout everywhere:** the phone-portrait Klondike board (design size **390×620**, cards 48×68) is used on iPhone *and* Mac/desktop.
+- **Uniform scale:** `transform: scale(...)` on `#table-scale` fits that board to the available stage (width and height). Cards and picnic table grow/shrink together — no separate wide desktop arrangement.
+- Pointer events for mouse + touch; drag math divides by the live scale so hit-tests stay correct after scaling. `viewport-fit=cover` + safe-area insets for notch/home bar.
 
 ## Look
 | Token | Hex |
@@ -49,6 +49,13 @@ Defects are separate layers so they can be mixed and reused. Slight irregular bo
 - Stock flip: short scale-X flip — not an instant texture swap.
 - Prefer zero deps. Add **Matter.js** only if fling/collide feel needs real bodies.
 - Respect `prefers-reduced-motion` (short fades, no fling).
+
+## Sound
+Web Audio synth in `assets/js/sound.js` (Bandit-style — **no sample files**, no third-party voice IP).
+- **Card SFX:** slap, snap, bounce, flip, deal ticks, shuffle, win chime.
+- **Radio bed:** quiet filtered hiss + occasional key-up click, scratchy band-limited “chatter” burble, squelch (Dispatch–R55 *flavor*, synthesized — not Ranger voice lines).
+- **Controls:** home/play sound bar to unlock (iOS gesture), ♪ panel with mute + volume (`deal_mute` / `deal_vol` in `localStorage`).
+- **iPhone silent switch:** not readable from the web; users mute in-app or via the OS switch (Safari may still play depending on settings).
 
 ## Save & stats
 `localStorage` keys (names TBD in Wave 1 code), e.g.:
