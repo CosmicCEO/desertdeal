@@ -1,6 +1,6 @@
 # Desert Deal — Wave 1 contract
 
-Playable solo Klondike in the desert paper look. Static site. No build step. No server required.
+Playable solo Klondike on a worn picnic-table look. Static site. No build step. No server required.
 
 ## Done-when checklist
 
@@ -9,10 +9,12 @@ Playable solo Klondike in the desert paper look. Static site. No build step. No 
 - [x] README + `docs/RULES.md` + `docs/DESIGN.md` + `docs/WAVE1.md` + `docs/PITCH.md`
 - [x] Local pitch sheet (HTML/PDF/PNG under `/workspace/desertdeal/pitch/`; not committed)
 
-### 1. Card art system
+### 1. Card art + table
 - [ ] 52 faces + card backs as layered HTML/SVG (or generated assets)
 - [ ] Defect overlays (scuff, coffee, dog-ear, sun-bleach, crease) seeded by card id
-- [ ] Deal animation onto kraft table
+- [ ] Picnic table: weathered planks, grain/knots, silver-grey bleach, dark gaps, flush bolt heads (original art)
+- [ ] Deal animation onto the table
+- [ ] Optional ants (can wait for polish)
 
 ### 2. Physics input
 - [ ] Drag cards; fling with inertia; snap to legal pile or bounce back
@@ -45,4 +47,4 @@ dev/                 later: simple checks / screenshot helpers
 ```
 
 ## Non-goals for Wave 1
-PHP/MySQL, online rooms, accounts, Matter.js unless CSS physics fails, Dust Storm mechanic, committing binary pitch art.
+PHP/MySQL, online rooms, accounts, Matter.js unless CSS physics fails, Dust Storm mechanic, committing binary pitch art, embedding paid stock photos.

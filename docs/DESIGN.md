@@ -1,6 +1,6 @@
 # Desert Deal — design
 
-Sibling of **Desert Ranger** and **Desert Bandit**: cream kraft paper, ink outlines, tape, desert palette. Solo Klondike instead of rooms/reels.
+Sibling of **Desert Ranger** and **Desert Bandit**: desert palette, ink outlines, tape accents. Solo Klondike instead of rooms/reels.
 
 ## Look
 | Token | Hex |
@@ -14,7 +14,15 @@ Sibling of **Desert Ranger** and **Desert Bandit**: cream kraft paper, ink outli
 | kraft | `#b78a52` |
 | sand | `#E8D7B4` |
 
-Fonts (same as siblings): **Bungee**, **Nunito**, **Caveat**, **Bangers**. No casino plastic blues or glossy vinyl. Table feels like a kraft picnic board in Anza-Borrego light.
+Fonts (same as siblings): **Bungee**, **Nunito**, **Caveat**, **Bangers**. No casino plastic blues or glossy vinyl.
+
+## Play surface — worn wooden picnic table
+Original art only (stock photos are reference, never embedded).
+- **Weathered horizontal planks** with visible grain and knots
+- **Silver-grey sun bleach** washes on the boards
+- **Dark gaps** between planks
+- **Flush dark circular bolt/nail heads** along each board (not shiny chrome)
+- **Optional tiny ants** walking on the wood (static on the pitch; occasional wander in-game later)
 
 ## Cards = paper + defects
 Each card is stacked layers, not one flat PNG:
@@ -44,7 +52,7 @@ Defects are separate assets so they can be mixed and reused. Slight irregular bo
 Autosave after every successful move. Resume on home screen. Optional later: tiny PHP stats ping for a global plays counter (out of scope for Wave 1).
 
 ## Flavor (fiction)
-A pack left in **R273’s** truck / a bandit camp — story seasoning only. This title is **Jerod Price / CosmicCEO**; no claim on Jeffery’s board art beyond the shared desert family palette and fonts.
+A pack left in **R273’s** truck / dealt on a desert picnic table — story seasoning only. This title is **Jerod Price / CosmicCEO**; no claim on Jeffery’s board art beyond the shared desert family palette and fonts.
 
 ## Out of scope for Wave 1
-Accounts, multiplayer, PHP/MySQL, Matter.js, Dust Storm rule twist, real-money anything, shipping pitch PDF in git.
+Accounts, multiplayer, PHP/MySQL, Matter.js, Dust Storm rule twist, real-money anything, shipping pitch PDF in git, embedding paid stock photos.
