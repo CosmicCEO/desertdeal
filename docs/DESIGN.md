@@ -2,6 +2,11 @@
 
 Sibling of **Desert Ranger** and **Desert Bandit**: desert palette, ink outlines, tape accents. Solo Klondike instead of rooms/reels.
 
+## Platforms (locked)
+- **Desktop** landscape table (~1280×800): cards ~90–110px tall, room for 7 tableau columns.
+- **iPhone** portrait-first (~390×844): playfield scales via CSS variables + `transform: scale` on a fixed board; stock/waste/foundations stay thumb-reachable; no landscape required.
+- Pointer events for mouse + touch. `viewport-fit=cover` + safe-area insets for notch/home bar.
+
 ## Look
 | Token | Hex |
 |---|---|
@@ -14,15 +19,17 @@ Sibling of **Desert Ranger** and **Desert Bandit**: desert palette, ink outlines
 | kraft | `#b78a52` |
 | sand | `#E8D7B4` |
 
-Fonts (same as siblings): **Bungee**, **Nunito**, **Caveat**, **Bangers**. No casino plastic blues or glossy vinyl.
+Fonts (same as siblings): **Bungee**, **Nunito**, **Caveat**, **Bangers**. Loaded via Google Fonts in `index.html`; optional local copies under `assets/fonts/` (same files as Ranger/Bandit pitch). No casino plastic blues or glossy vinyl.
+
+Shared UI bits borrowed from Bandit/Ranger: paper cards with kraft tape, ink drop-shadow buttons, cream radial wash background, Bungee title + Caveat tagline.
 
 ## Play surface — worn wooden picnic table
 Original art only (stock photos are reference, never embedded).
-- **Weathered horizontal planks** with visible grain and knots
+- **Weathered horizontal planks** with visible grain and knots (CSS planks in `game.css`; pitch SVG reference in `assets/img/picnic-table.svg`)
 - **Silver-grey sun bleach** washes on the boards
 - **Dark gaps** between planks
 - **Flush dark circular bolt/nail heads** along each board (not shiny chrome)
-- **Optional tiny ants** walking on the wood (static on the pitch; occasional wander in-game later)
+- **Tiny ants** that occasionally wander (CSS keyframe loops)
 
 ## Cards = paper + defects
 Each card is stacked layers, not one flat PNG:
@@ -34,20 +41,20 @@ Each card is stacked layers, not one flat PNG:
    - sun-bleach wash
    - faint crease
 
-Defects are separate assets so they can be mixed and reused. Slight irregular border-radius / wobble per card.
+Defects are separate layers so they can be mixed and reused. Slight irregular border-radius / wobble per card.
 
 ## Physics (CSS/JS first)
 - Pointer drag with offset under the finger.
 - On release: use **velocity** to fling; cards ease into a legal slot or **bounce back** if illegal.
-- Stock flip: short 3D `rotateY` (or 2D scale-X flip) — not an instant texture swap.
+- Stock flip: short scale-X flip — not an instant texture swap.
 - Prefer zero deps. Add **Matter.js** only if fling/collide feel needs real bodies.
 - Respect `prefers-reduced-motion` (short fades, no fling).
 
 ## Save & stats
 `localStorage` keys (names TBD in Wave 1 code), e.g.:
-- `deal_save` — full mid-game snapshot + schema version
-- `deal_plays`, `deal_highScore`, `deal_bestTimeMs`
-- mute / volume
+- `deal_save` — full mid-game snapshot + schema version (**TODO**)
+- `deal_plays`, `deal_highScore`, `deal_bestTimeMs` — partially wired
+- mute / volume (**TODO**)
 
 Autosave after every successful move. Resume on home screen. Optional later: tiny PHP stats ping for a global plays counter (out of scope for Wave 1).
 

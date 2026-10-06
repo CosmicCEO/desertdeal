@@ -1,0 +1,16 @@
+# Local pitch binaries (stay on the box, not in git)
+pitch/
+*.pdf
+*.png
+!docs/**
+
+# Sibling font files (use Google Fonts or tools/link); keep repo text-only friendly
+assets/fonts/*.ttf
+assets/fonts/*.otf
+assets/fonts/*.woff*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.env

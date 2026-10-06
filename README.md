@@ -4,24 +4,27 @@ A single-player Klondike solitaire with a worn paper deck, card physics, and loc
 
 Flavor: a dog-eared 52-card pack on weathered planks (grain, knots, sun bleach, flush bolt heads). Coffee stains, clipped corners. Drag, fling, flip. Pause mid-deal and pick it up later.
 
-**Status:** scaffold (docs + pitch). Playable Wave 1 not started yet.
+**Status:** Wave 1 playable scaffold — cards, picnic table, drag/fling physics, Klondike deal + stock flip + basic moves. Save/undo/sound still TODO.
+
+**Designed for desktop and iPhone** (portrait-first phone layout; landscape desktop table).
 
 ## Docs
 | Path | What |
 |---|---|
 | [`docs/RULES.md`](docs/RULES.md) | Classic Klondike rules, scoring, stats |
-| [`docs/DESIGN.md`](docs/DESIGN.md) | Picnic table, card defects, physics, save plan |
+| [`docs/DESIGN.md`](docs/DESIGN.md) | Picnic table, card defects, physics, responsive targets |
 | [`docs/WAVE1.md`](docs/WAVE1.md) | Wave 1 done-when contract |
 | [`docs/PITCH.md`](docs/PITCH.md) | One-pager text (matches the pitch sheet) |
 
 ## Stack (MVP)
-Static HTML + CSS + vanilla JS. No build step. No PHP/MySQL on day one. Stats and mid-game save live in `localStorage`. Fonts match the siblings (Bungee, Nunito, Caveat, Bangers). Original picnic-table art only — no paid stock embeds.
+Static HTML + CSS + vanilla JS. No build step. No PHP/MySQL on day one. Stats and mid-game save live in `localStorage`. Fonts match the siblings (Bungee, Nunito, Caveat, Bangers) via Google Fonts; optional local copies from Ranger/Bandit. Original picnic-table art only — no paid stock embeds.
 
-## Run locally (once the client lands)
+## Run locally
 ```bash
-# from the deploy folder (planned: desertdeal/)
+cd /path/to/desertdeal   # repo root (index.html here)
 python3 -m http.server 8899
 # open http://127.0.0.1:8899/
+# or http://127.0.0.1:8899/?play=1 to skip home
 ```
 
 ## Rights

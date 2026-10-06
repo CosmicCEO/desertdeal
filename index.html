@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#C3623B">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Desert Deal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bungee&family=Caveat:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/game.css">
+</head>
+<body>
+<button id="sound-bar" class="sound-bar" type="button" hidden>Sound is paused. Tap here to turn it on.</button>
+
+<!-- HOME -->
+<section id="screen-home" class="screen">
+  <h1 class="title">DESERT<br>DEAL</h1>
+  <p class="tagline">A dog-eared pack on a worn wooden picnic table.</p>
+
+  <div id="resume-box" class="card paper-card" hidden>
+    <span class="tape tape-l"></span>
+    <button id="btn-resume" class="btn big sage" type="button">Resume deal</button>
+  </div>
+
+  <div class="card paper-card">
+    <span class="tape tape-l"></span>
+    <p class="intro">Classic <b>Klondike</b> · Draw 3 · worn paper cards · picnic-table physics.</p>
+    <button id="btn-new" class="btn big" type="button">New deal</button>
+    <label class="draw-toggle">
+      <input id="opt-draw1" type="checkbox">
+      <span>Draw 1 (easier)</span>
+    </label>
+  </div>
+
+  <div class="card stats-card" id="stats-card">
+    <div class="label">Local stats</div>
+    <div class="stats-row">
+      <div><small>Plays</small><b id="stat-plays">0</b></div>
+      <div><small>High score</small><b id="stat-high">—</b></div>
+      <div><small>Best time</small><b id="stat-best">—</b></div>
+    </div>
+    <p class="hint center">Save &amp; scoring land fully later in Wave 1.</p>
+  </div>
+
+  <p class="center"><a class="about-link" href="#about">About</a></p>
+</section>
+
+<!-- PLAY -->
+<section id="screen-play" class="screen play" hidden>
+  <header class="top">
+    <button id="btn-home" class="icon-btn" type="button" aria-label="Home">←</button>
+    <b class="logo">DESERT DEAL</b>
+    <span id="hud-score" class="hud-chip">0</span>
+    <span id="hud-time" class="hud-chip">0:00</span>
+    <button id="btn-undo" class="icon-btn" type="button" aria-label="Undo" title="Undo">↶</button>
+    <button id="btn-redeal" class="icon-btn" type="button" aria-label="New deal" title="New deal">↻</button>
+  </header>
+
+  <div id="table-stage" class="table-stage">
+    <div id="table-scale" class="table-scale">
+      <div id="picnic" class="picnic" aria-hidden="true">
+        <!-- picnic wood injected / CSS planks -->
+        <div class="planks" id="planks"></div>
+        <div class="ant ant-a" aria-hidden="true"></div>
+        <div class="ant ant-b" aria-hidden="true"></div>
+      </div>
+
+      <div id="playfield" class="playfield">
+        <div class="row top-row">
+          <div class="pile stock" id="pile-stock" data-pile="stock" aria-label="Stock"></div>
+          <div class="pile waste" id="pile-waste" data-pile="waste" aria-label="Waste"></div>
+          <div class="spacer"></div>
+          <div class="pile foundation" id="pile-f0" data-pile="f0" data-suit="spades" aria-label="Foundation spades"></div>
+          <div class="pile foundation" id="pile-f1" data-pile="f1" data-suit="hearts" aria-label="Foundation hearts"></div>
+          <div class="pile foundation" id="pile-f2" data-pile="f2" data-suit="diamonds" aria-label="Foundation diamonds"></div>
+          <div class="pile foundation" id="pile-f3" data-pile="f3" data-suit="clubs" aria-label="Foundation clubs"></div>
+        </div>
+        <div class="row tableau-row">
+          <div class="pile tableau" id="pile-t0" data-pile="t0" aria-label="Tableau 1"></div>
+          <div class="pile tableau" id="pile-t1" data-pile="t1" aria-label="Tableau 2"></div>
+          <div class="pile tableau" id="pile-t2" data-pile="t2" aria-label="Tableau 3"></div>
+          <div class="pile tableau" id="pile-t3" data-pile="t3" aria-label="Tableau 4"></div>
+          <div class="pile tableau" id="pile-t4" data-pile="t4" aria-label="Tableau 5"></div>
+          <div class="pile tableau" id="pile-t5" data-pile="t5" aria-label="Tableau 6"></div>
+          <div class="pile tableau" id="pile-t6" data-pile="t6" aria-label="Tableau 7"></div>
+        </div>
+      </div>
+
+      <div id="drag-layer" class="drag-layer" aria-hidden="true"></div>
+    </div>
+  </div>
+
+  <div id="win-banner" class="win-banner" hidden>
+    <div class="card paper-card">
+      <span class="tape tape-l"></span>
+      <h2 class="mini-title">You cleared the table!</h2>
+      <p id="win-detail" class="center"></p>
+      <button id="btn-win-new" class="btn big mari" type="button">Deal again</button>
+      <button id="btn-win-home" class="btn sage" type="button">Home</button>
+    </div>
+  </div>
+</section>
+
+<!-- ABOUT (simple hash panel) -->
+<section id="screen-about" class="screen" hidden>
+  <button id="btn-about-back" class="btn slim sage" type="button">← Back</button>
+  <h2 class="mini-title">About Desert Deal</h2>
+  <div class="card paper-card">
+    <span class="tape tape-l"></span>
+    <p>Classic Klondike solitaire with a worn paper deck, dealt on a weathered picnic table. Sibling to <b>Desert Ranger</b> and <b>Desert Bandit</b> — shared desert palette and fonts.</p>
+    <p>© 2026 Jerod Price / CosmicCEO. All rights reserved.</p>
+  </div>
+</section>
+
+<script src="assets/js/cards.js"></script>
+<script src="assets/js/physics.js"></script>
+<script src="assets/js/game.js"></script>
+</body>
+</html>

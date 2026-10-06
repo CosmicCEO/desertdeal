@@ -1,0 +1,411 @@
+/* Desert Deal — picnic table + worn paper cards.
+   Palette/fonts match Desert Ranger & Desert Bandit.
+   Local @font-face when assets/fonts are present; Google Fonts as fallback. */
+@font-face { font-family: Bungee;  src: local("Bungee"), url(../fonts/Bungee-Regular.ttf); font-display: swap; }
+@font-face { font-family: Nunito;  src: local("Nunito"), url(../fonts/Nunito.ttf); font-weight: 200 1000; font-display: swap; }
+@font-face { font-family: Caveat;  src: local("Caveat"), url(../fonts/Caveat.ttf); font-weight: 400 700; font-display: swap; }
+@font-face { font-family: Bangers; src: local("Bangers"), url(../fonts/Bangers-Regular.ttf); font-display: swap; }
+
+:root {
+  --cream: #F4ECD8; --paper: #fffaf0; --ink: #3A2A1E; --ink2: #6d4a2f; --ink3: #5a3d26;
+  --terra: #C3623B; --mari: #E9A23B; --gold: #F2B640;
+  --sage: #7E9168; --sagel: #C9D3B4; --sand: #E8D7B4; --kraft: #b78a52; --kraft2: #c9a06a;
+  --tape: rgba(233,162,59,.62);
+  /* design board (desktop landscape table) */
+  --board-w: 1100px;
+  --board-h: 720px;
+  --card-w: 78px;
+  --card-h: 110px;
+  --fan-y: 26px;
+  --waste-fan: 22px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bot: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; height: 100%; }
+html, body {
+  margin: 0; color: var(--ink);
+  font-family: Nunito, system-ui, sans-serif; font-size: 17px;
+  -webkit-tap-highlight-color: transparent;
+  background: var(--cream);
+  background-image:
+    radial-gradient(ellipse at 15% 8%, rgba(255,250,235,.8), transparent 55%),
+    radial-gradient(ellipse at 90% 96%, rgba(214,186,140,.4), transparent 60%);
+  background-attachment: fixed;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+body { padding-top: var(--safe-top); padding-bottom: var(--safe-bot); }
+[hidden] { display: none !important; }
+button, a, input { touch-action: manipulation; }
+
+/* —— shared paper UI (borrowed from Bandit/Ranger) —— */
+.screen { max-width: 520px; margin: 0 auto; padding: 14px 16px calc(40px + var(--safe-bot)); }
+.screen.play { max-width: none; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+.title {
+  font-family: Bungee, sans-serif; font-weight: normal; color: var(--terra);
+  font-size: 3.1rem; line-height: .9; margin: 18px 0 6px; text-align: center;
+  text-shadow: 3px 3px 0 var(--mari), 5.5px 5.5px 0 var(--ink); letter-spacing: 1px;
+}
+.mini-title {
+  font-family: Bungee, sans-serif; color: var(--terra); text-align: center;
+  margin: 4px 0 10px; font-weight: normal; text-shadow: 1.5px 1.5px 0 var(--mari);
+}
+.tagline {
+  text-align: center; font-family: Caveat, cursive; font-weight: 700;
+  font-size: 1.45rem; color: var(--ink2); margin: 10px 0 14px;
+}
+.card, .paper-card {
+  position: relative; background: var(--paper); border: 2px solid var(--ink);
+  border-radius: 14px 16px 13px 17px / 16px 13px 17px 14px; padding: 14px;
+  margin: 12px 0; box-shadow: 3px 4px 0 rgba(58,42,30,.18);
+}
+.tape {
+  position: absolute; width: 64px; height: 20px; background: var(--tape);
+  border: 1px solid rgba(154,106,28,.3); top: -10px;
+}
+.tape-l { left: 40%; transform: rotate(-4deg); }
+.label { display: block; font-family: Bungee, sans-serif; font-size: .82rem; color: var(--ink2); margin: 6px 0 8px; }
+.hint { font-size: .88rem; color: var(--ink2); }
+.center { text-align: center; }
+.intro { font-size: .98rem; line-height: 1.4; margin: 0 0 12px; }
+.intro b { color: var(--terra); }
+
+.btn {
+  display: block; width: 100%; border: 2.4px solid var(--ink); border-radius: 14px;
+  background: var(--terra); color: var(--paper); font: 1.1rem Bungee, sans-serif;
+  padding: 12px 16px; min-height: 56px; cursor: pointer;
+  box-shadow: 0 4px 0 var(--ink); margin: 10px 0; text-align: center; text-decoration: none;
+}
+.btn:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 var(--ink); }
+.btn.sage { background: var(--sage); }
+.btn.mari { background: var(--mari); color: var(--ink); }
+.btn.big { min-height: 58px; }
+.btn.slim { min-height: 46px; font-size: .95rem; padding: 8px 12px; }
+.about-link { color: var(--terra); font-weight: 800; display: inline-block; padding: 12px 10px; min-height: 44px; }
+
+.draw-toggle {
+  display: flex; align-items: center; gap: 10px; min-height: 44px;
+  font-weight: 700; color: var(--ink2); margin-top: 4px; cursor: pointer;
+}
+.draw-toggle input { width: 22px; height: 22px; accent-color: var(--terra); }
+
+.stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center; }
+.stats-row small { display: block; font: .62rem Bungee, sans-serif; color: var(--sage); }
+.stats-row b { font: 1.35rem Bangers, Bungee, sans-serif; letter-spacing: .5px; }
+
+.sound-bar {
+  display: block; width: calc(100% - 32px); max-width: 488px; margin: 10px auto 0;
+  border: 2px solid var(--ink); border-radius: 14px; background: var(--mari); color: var(--ink);
+  font: 700 1rem Nunito, sans-serif; padding: 10px 14px; min-height: 48px;
+  box-shadow: 0 4px 0 var(--ink); text-align: center; cursor: pointer;
+}
+
+/* —— play header —— */
+.top {
+  display: flex; align-items: center; gap: 6px; padding: 8px 10px;
+  padding-left: max(10px, var(--safe-l)); padding-right: max(10px, var(--safe-r));
+  background: var(--terra); color: var(--paper); position: sticky; top: 0; z-index: 40;
+  min-height: 48px;
+}
+.logo {
+  font: 1rem Bungee, sans-serif; font-weight: normal; flex: 1;
+  text-shadow: 1.5px 1.5px 0 rgba(58,42,30,.35); white-space: nowrap;
+}
+.hud-chip {
+  font: .72rem Bungee, sans-serif; background: var(--paper); color: var(--terra);
+  border-radius: 8px; padding: 4px 8px; min-width: 44px; text-align: center;
+}
+.icon-btn {
+  width: 44px; height: 44px; border-radius: 12px; background: var(--paper);
+  border: 2px solid var(--ink); color: var(--ink); font-size: 1.15rem;
+  cursor: pointer; flex: none; padding: 0; line-height: 1;
+}
+
+/* —— table stage (scales whole playfield) —— */
+.table-stage {
+  flex: 1; position: relative; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  background: #5c4228;
+  min-height: 0;
+}
+.table-scale {
+  position: relative;
+  width: var(--board-w);
+  height: var(--board-h);
+  transform-origin: center center;
+  /* JS sets --scale */
+  transform: scale(var(--scale, 1));
+  flex: none;
+}
+
+/* —— picnic table surface —— */
+.picnic {
+  position: absolute; inset: 0; border-radius: 18px; overflow: hidden;
+  border: 3px solid var(--ink); box-shadow: 6px 8px 0 rgba(30,18,10,.35);
+}
+.planks { position: absolute; inset: 0; display: flex; flex-direction: column; }
+.plank {
+  position: relative; flex: 1; border-bottom: 3px solid #2a1a0e;
+  /* weathered wood base */
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.07), transparent 40%, rgba(20,10,5,.14)),
+    linear-gradient(90deg, rgba(180,160,120,.18), transparent 30%, rgba(90,70,40,.12) 70%, transparent),
+    repeating-linear-gradient(90deg,
+      transparent 0 11px,
+      rgba(60,40,20,.07) 11px 12px,
+      transparent 12px 23px),
+    linear-gradient(180deg, #9a7544, #7a5a32 48%, #8a6840);
+}
+.plank:nth-child(odd) { background-color: #8a6840; filter: brightness(1.02); }
+.plank:nth-child(even) { background-color: #7a5834; }
+.plank .bleach {
+  position: absolute; inset: 0;
+  background: linear-gradient(105deg,
+    transparent 10%, rgba(200,200,190,.22) 28%, transparent 42%,
+    rgba(210,205,190,.16) 60%, transparent 78%);
+  pointer-events: none;
+}
+.plank .knot {
+  position: absolute; width: 18px; height: 14px; border-radius: 50%;
+  background: radial-gradient(ellipse at 40% 40%, #5a3a1e, #3a2410 70%);
+  box-shadow: inset 0 0 0 2px rgba(40,24,12,.5); opacity: .85;
+}
+.plank .bolt {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #4a4a48, #1a1a18 70%);
+  box-shadow: inset 0 1px 1px rgba(255,255,255,.15), 0 0 0 1.5px #2a1a10;
+  top: 50%; transform: translateY(-50%);
+}
+
+/* ants — occasional CSS wander */
+.ant {
+  position: absolute; width: 10px; height: 6px; z-index: 5; pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 50%, #1a120c 0 2px, transparent 2.2px),
+    radial-gradient(circle at 50% 50%, #1a120c 0 2.2px, transparent 2.4px),
+    radial-gradient(circle at 80% 50%, #1a120c 0 2px, transparent 2.2px);
+  opacity: .7;
+}
+.ant::before, .ant::after {
+  content: ""; position: absolute; width: 8px; height: 1px; background: #1a120c;
+  top: 2px; left: 1px; opacity: .6;
+}
+.ant-a { top: 18%; left: -4%; animation: antWalkA 28s linear infinite; animation-delay: 2s; }
+.ant-b { top: 72%; left: 105%; animation: antWalkB 36s linear infinite; animation-delay: 8s; }
+@keyframes antWalkA {
+  0%   { transform: translate(0,0) rotate(8deg); opacity: 0; }
+  5%   { opacity: .75; }
+  45%  { transform: translate(980px, 40px) rotate(12deg); }
+  50%  { transform: translate(1000px, 55px) rotate(170deg); }
+  95%  { opacity: .75; }
+  100% { transform: translate(80px, 120px) rotate(175deg); opacity: 0; }
+}
+@keyframes antWalkB {
+  0%   { transform: translate(0,0) rotate(-170deg); opacity: 0; }
+  8%   { opacity: .7; }
+  55%  { transform: translate(-1100px, -30px) rotate(-175deg); }
+  60%  { transform: translate(-1120px, -10px) rotate(10deg); }
+  100% { transform: translate(-200px, 60px) rotate(15deg); opacity: 0; }
+}
+
+/* —— playfield piles —— */
+.playfield {
+  position: absolute; inset: 0; z-index: 10;
+  padding: 28px 36px 24px;
+  display: flex; flex-direction: column; gap: 28px;
+  pointer-events: none; /* piles opt-in */
+}
+.row { display: flex; gap: 14px; align-items: flex-start; }
+.top-row .spacer { flex: 1; min-width: 12px; }
+.tableau-row { flex: 1; }
+
+.pile {
+  position: relative;
+  width: var(--card-w); min-height: var(--card-h);
+  pointer-events: auto;
+  border-radius: 8px;
+}
+.pile::before {
+  content: ""; position: absolute; inset: 0;
+  border: 2px dashed rgba(58,42,30,.28); border-radius: 8px;
+  background: rgba(40,24,12,.12);
+}
+.pile.foundation::after {
+  content: attr(data-suit-sym);
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: rgba(58,42,30,.22); pointer-events: none; z-index: 0;
+}
+.pile.stock, .pile.waste, .pile.foundation, .pile.tableau { z-index: 1; }
+
+.drag-layer {
+  position: absolute; inset: 0; z-index: 80; pointer-events: none;
+}
+
+/* —— cards —— */
+.card-el {
+  position: absolute; left: 0; top: 0;
+  width: var(--card-w); height: var(--card-h);
+  border-radius: 7px 8px 6px 8px / 8px 6px 8px 7px;
+  user-select: none; -webkit-user-select: none;
+  touch-action: none; cursor: grab;
+  transform-origin: center center;
+  will-change: transform;
+  z-index: 2;
+}
+.card-el:active, .card-el.dragging { cursor: grabbing; }
+.card-el .face, .card-el .back {
+  position: absolute; inset: 0; border-radius: inherit;
+  border: 2.2px solid var(--ink);
+  box-shadow: 2px 3px 0 rgba(40,28,18,.28);
+  overflow: hidden;
+}
+.card-el .face {
+  background: var(--paper);
+  display: flex; flex-direction: column;
+}
+.card-el .back {
+  background:
+    repeating-linear-gradient(90deg, rgba(120,80,35,.14) 0 2px, transparent 2px 6px),
+    var(--kraft);
+}
+.card-el .back-inner {
+  position: absolute; left: 8%; right: 8%; top: 7%; bottom: 7%;
+  border: 1.6px solid var(--ink); border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  font: 700 1.1rem Caveat, cursive; color: var(--ink);
+}
+.card-el .back-tape {
+  position: absolute; width: 42%; height: 9%; left: 29%; top: -2%;
+  background: var(--tape); border: 1px solid rgba(154,106,28,.35);
+  transform: rotate(-8deg);
+}
+/* show only one side (avoid translucent double-layer) */
+.card-el.facedown .face { visibility: hidden; }
+.card-el.facedown .back { visibility: visible; }
+.card-el.faceup .face { visibility: visible; }
+.card-el.faceup .back { visibility: hidden; }
+
+.card-el.flipping {
+  transition: transform .28s ease;
+}
+
+.card-el .corner {
+  position: absolute; left: 6px; top: 5px; line-height: 1;
+  display: flex; flex-direction: column; align-items: center;
+}
+.card-el .corner .rank {
+  font: 700 clamp(11px, 2.4vw, 15px) Bungee, sans-serif;
+}
+.card-el .corner .suit { font-size: clamp(12px, 2.6vw, 16px); line-height: 1; }
+.card-el .corner.br {
+  left: auto; top: auto; right: 6px; bottom: 5px;
+  transform: rotate(180deg);
+}
+.card-el .pip {
+  position: absolute; left: 50%; top: 54%; transform: translate(-50%, -50%);
+  font-size: clamp(28px, 6vw, 42px); opacity: .92; pointer-events: none;
+}
+.card-el.red .rank, .card-el.red .suit, .card-el.red .pip { color: var(--terra); }
+.card-el.black .rank, .card-el.black .suit, .card-el.black .pip { color: var(--ink); }
+
+/* defect overlays */
+.card-el .defects { position: absolute; inset: 0; pointer-events: none; border-radius: inherit; overflow: hidden; }
+.card-el .def-coffee {
+  position: absolute; width: 48%; height: 38%; border-radius: 50%;
+  border: 6px solid rgba(109,74,47,.4); background: rgba(179,122,62,.14);
+  opacity: .85;
+}
+.card-el .def-bleach {
+  position: absolute; width: 70%; height: 55%; border-radius: 50%;
+  background: rgba(242,182,64,.2);
+}
+.card-el .def-scuff {
+  position: absolute; left: 8%; bottom: 12%; width: 42%; height: 18%;
+  background: transparent;
+  border-bottom: 2px solid rgba(58,42,30,.28);
+  border-radius: 40%;
+  box-shadow: 8px -6px 0 -4px rgba(58,42,30,.18);
+}
+.card-el .def-crease {
+  position: absolute; left: 12%; top: 6%; width: 76%; height: 88%;
+  background: linear-gradient(118deg, transparent 48%, rgba(58,42,30,.12) 50%, transparent 52%);
+}
+.card-el .def-dogear {
+  position: absolute; right: 0; top: 0; width: 22%; height: 16%;
+  background: var(--sand);
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+  border-left: 1.4px solid var(--ink);
+  box-shadow: inset -1px 1px 0 rgba(58,42,30,.25);
+}
+
+.card-el.dragging {
+  z-index: 90 !important;
+  filter: drop-shadow(4px 8px 6px rgba(30,18,10,.4));
+  transition: none !important;
+}
+.card-el.snapping {
+  transition: left .28s cubic-bezier(.2,1.3,.4,1), top .28s cubic-bezier(.2,1.3,.4,1),
+              transform .28s cubic-bezier(.2,1.3,.4,1);
+}
+.card-el.bouncing {
+  transition: left .34s cubic-bezier(.4,.1,.3,1.4), top .34s cubic-bezier(.4,.1,.3,1.4),
+              transform .34s cubic-bezier(.4,.1,.3,1.4);
+}
+.card-el.deal-in {
+  animation: dealIn .45s cubic-bezier(.2,1.4,.5,1) both;
+}
+@keyframes dealIn {
+  from { opacity: 0; transform: translateY(-40px) rotate(-8deg) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+
+.stock.empty-recycle::before {
+  content: "↻"; display: flex; align-items: center; justify-content: center;
+  font: 1.6rem Bungee, sans-serif; color: rgba(58,42,30,.35);
+  border-style: solid; background: rgba(40,24,12,.08);
+}
+
+.win-banner {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(58,42,30,.55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.win-banner .card { max-width: 360px; width: 100%; }
+
+/* —— responsive: phone portrait ~390 —— */
+@media (max-width: 700px) {
+  :root {
+    --board-w: 390px;
+    --board-h: 620px;
+    --card-w: 48px;
+    --card-h: 68px;
+    --fan-y: 16px;
+    --waste-fan: 14px;
+  }
+  .playfield { padding: 16px 10px 12px; gap: 16px; }
+  .row { gap: 6px; }
+  .logo { font-size: .85rem; }
+  .card-el .corner .rank { font-size: 11px; }
+  .card-el .pip { font-size: 22px; }
+  .picnic { border-radius: 10px; }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  :root {
+    --card-w: 68px;
+    --card-h: 96px;
+    --fan-y: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ant-a, .ant-b { animation: none; opacity: .5; }
+  .card-el.deal-in, .card-el.snapping, .card-el.bouncing, .card-el.flipping {
+    animation: none; transition: opacity .15s;
+  }
+}
