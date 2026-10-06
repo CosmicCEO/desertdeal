@@ -51,17 +51,25 @@ Defects are separate layers so they can be mixed and reused. Slight irregular bo
 - Respect `prefers-reduced-motion` (short fades, no fling).
 
 ## Sound
-Web Audio synth in `assets/js/sound.js` (Bandit-style — **no sample files**, no third-party voice IP).
-- **Card SFX:** slap, snap, bounce, flip, deal ticks, shuffle, win chime.
-- **Radio bed:** quiet filtered hiss + occasional key-up click, scratchy band-limited “chatter” burble, squelch (Dispatch–R55 *flavor*, synthesized — not Ranger voice lines).
-- **Controls:** home/play sound bar to unlock (iOS gesture), ♪ panel with mute + volume (`deal_mute` / `deal_vol` in `localStorage`).
-- **iPhone silent switch:** not readable from the web; users mute in-app or via the OS switch (Safari may still play depending on settings).
+Recorded clips only — the old Web Audio synth (card blips + synthesized radio hiss) is gone. Sources and edits: `assets/audio/CREDITS.md`.
+- **Cards:** Kenney *Casino Audio* (CC0): deal, place, flip, bounce, shuffle, win fan. Short (≤ 0.5 s, shuffle 1.6 s) and quiet.
+- **Radio + ambience (Desert Ranger):** the Ranger desert bed loops quietly; every 45-90 s a random Dispatch / R55 / R273 exchange plays with Ranger's own key-up click and squelch. Nothing re-voiced or synthesized.
+- **Unlock:** silent until the first tap anywhere (iOS rule). The "Sound starts after your first tap" hint is `position: fixed` and `pointer-events: none` — it never moves the layout and never blocks a tap.
+- **Controls:** ♪ in the play header → mute + volume (`deal_mute`, `deal_vol`).
+- **iPhone silent switch:** Web Audio on iOS follows the ring/silent switch; we also request `navigator.audioSession.type = 'ambient'` where Safari supports it. Audio suspends when the tab is hidden.
+
+## Input (fixed after Wave 1 playtest)
+- **Tap-to-move** (primary on iPhone): tap a face-up card → it (and the cards on it) goes to the best legal spot: its foundation, else the first non-empty tableau column it fits, else an empty column (Kings). Tap the stock to draw / recycle.
+- **Drag / fling:** drag starts after 6 px; drop target = the legal pile the card overlaps most; a quick flick toward a pile also lands; anything else bounces home.
+- All input is pointer events on the scaled board. No `click` handlers on the table (a click is lost if anything shifts between press and release).
+- Layout is computed in unscaled board px from `offsetLeft/offsetTop`; pointer → board px divides by the live scale.
+- Undo steps back through moves (button in the header). Autosave after every move (`deal_save`); Home offers **Resume**.
 
 ## Save & stats
 `localStorage` keys (names TBD in Wave 1 code), e.g.:
-- `deal_save` — full mid-game snapshot + schema version (**TODO**)
-- `deal_plays`, `deal_highScore`, `deal_bestTimeMs` — partially wired
-- mute / volume (**TODO**)
+- `deal_save` — full mid-game snapshot + schema version (v1): written after every move, cleared on a win
+- `deal_plays` (+1 per new deal, not on resume), `deal_highScore`, `deal_bestTimeMs` (completed games only)
+- `deal_mute`, `deal_vol`
 
 Autosave after every successful move. Resume on home screen. Optional later: tiny PHP stats ping for a global plays counter (out of scope for Wave 1).
 

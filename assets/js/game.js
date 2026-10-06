@@ -1,690 +1,493 @@
-/* Desert Deal — Klondike deal, layout, moves, stock flip. Wave 1 scaffold. */
+/* Desert Deal — Klondike engine + table layout.
+   One phone-portrait board (390x620 board px) scaled to fit any window.
+   Input: tap-to-move (primary, reliable on iPhone) + drag/fling. Undo, autosave/resume, stats.
+   URL params: ?play=1 (start/resume immediately), ?seed=N (deterministic deal), ?draw=1|3 */
 (function () {
   'use strict';
 
   var FSUITS = ['spades', 'hearts', 'diamonds', 'clubs'];
-  var FSYM = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+  var FSYM = { spades: '\u2660', hearts: '\u2665', diamonds: '\u2666', clubs: '\u2663' };
+  var BOARD_W = 390, BOARD_H = 620;
+  var SAVE_KEY = 'deal_save', SAVE_V = 1;
+  var PILES = ['stock', 'waste', 'f0', 'f1', 'f2', 'f3', 't0', 't1', 't2', 't3', 't4', 't5', 't6'];
 
-  var state = {
-    stock: [],
-    waste: [],
-    foundations: [[], [], [], []],
-    tableau: [[], [], [], [], [], [], []],
-    drawCount: 3,
-    score: 0,
-    startedAt: 0,
-    elapsedMs: 0,
-    undo: null,
-    won: false,
-    seed: 0
-  };
-
-  var els = {};
-  var cardMap = {}; // id -> { card, el, pile }
-  var drag = null;
+  var state = null;          // { piles: {id: [card]}, drawCount, score, elapsedMs, won, seed, moves }
+  var byId = {};             // card id -> card object (persistent across games)
+  var els = {};              // card id -> element
+  var undoStack = [];
+  var startedAt = 0;         // wall clock when elapsed counting resumed
   var timerId = null;
   var scale = 1;
-  /* Fixed phone-portrait design size (matches :root in game.css). */
-  var BOARD_W = 390;
-  var BOARD_H = 620;
-
-  function sfx(name) {
-    if (!window.DDSound) return;
-    var fn = DDSound[name];
-    if (typeof fn === "function") fn();
-  }
+  var busy = false;          // deal animation in progress
+  var ctl = null;
 
   function $(id) { return document.getElementById(id); }
+  function sfx(name, arg) { if (window.DDSound && typeof DDSound[name] === 'function') DDSound[name](arg); }
+  function cssPx(name, d) { var v = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)); return isFinite(v) ? v : d; }
+  function dims() { return { w: cssPx('--card-w', 48), h: cssPx('--card-h', 68), fan: cssPx('--fan-y', 16), fanDown: cssPx('--fan-down', 8), wfan: cssPx('--waste-fan', 14) }; }
+  function pile(id) { return state.piles[id]; }
+  function topOf(id) { var p = pile(id); return p[p.length - 1] || null; }
+  function isRed(c) { return c.color === 'red'; }
+  function params() { var o = {}; location.search.replace(/[?&]([^=&]+)=?([^&]*)/g, function (_, k, v) { o[k] = decodeURIComponent(v); }); return o; }
 
-  function cssPx(name) {
-    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
-  }
-
-  function cardSize() {
-    return { w: cssPx('--card-w') || 48, h: cssPx('--card-h') || 68, fan: cssPx('--fan-y') || 16, wfan: cssPx('--waste-fan') || 14 };
-  }
-
-  /** Live scale from painted rect (accounts for transform). */
-  function liveScale() {
-    var root = $('table-scale');
-    if (!root) return scale || 1;
-    var r = root.getBoundingClientRect();
-    var s = r.width / BOARD_W;
-    return (isFinite(s) && s > 0) ? s : (scale || 1);
-  }
-
-  /* —— picnic planks —— */
+  /* ---------------------------------------------------------------- table art */
   function buildPlanks() {
     var host = $('planks');
     if (!host || host.children.length) return;
-    var knotSpots = [
-      [12, 18], [70, 40], [35, 60], [85, 22], [20, 75], [55, 30], [40, 50]
-    ];
+    var knots = [[12, 18], [70, 40], [35, 60], [85, 22], [20, 75], [55, 30], [40, 50]];
     for (var i = 0; i < 7; i++) {
       var p = document.createElement('div');
       p.className = 'plank';
-      p.innerHTML = '<div class="bleach"></div>';
-      // bolts left + right
-      var b1 = document.createElement('div');
-      b1.className = 'bolt';
-      b1.style.left = '18px';
-      p.appendChild(b1);
-      var b2 = document.createElement('div');
-      b2.className = 'bolt';
-      b2.style.right = '18px';
-      b2.style.left = 'auto';
-      p.appendChild(b2);
-      // occasional mid bolt
-      if (i % 2 === 0) {
-        var b3 = document.createElement('div');
-        b3.className = 'bolt';
-        b3.style.left = '50%';
-        b3.style.marginLeft = '-5px';
-        p.appendChild(b3);
-      }
-      var ks = knotSpots[i];
-      if (ks) {
-        var k = document.createElement('div');
-        k.className = 'knot';
-        k.style.left = ks[0] + '%';
-        k.style.top = ks[1] + '%';
-        p.appendChild(k);
-      }
+      p.innerHTML = '<div class="bleach"></div><div class="bolt" style="left:12px"></div><div class="bolt" style="right:12px"></div>' +
+        (i % 2 === 0 ? '<div class="bolt" style="left:50%;margin-left:-5px"></div>' : '') +
+        '<div class="knot" style="left:' + knots[i][0] + '%;top:' + knots[i][1] + '%"></div>';
       host.appendChild(p);
     }
-    // foundation suit marks
-    for (var f = 0; f < 4; f++) {
-      var fp = $('pile-f' + f);
-      if (fp) {
-        fp.dataset.suitSym = FSYM[FSUITS[f]];
-        fp.setAttribute('data-suit-sym', FSYM[FSUITS[f]]);
-      }
-    }
+    for (var f = 0; f < 4; f++) $('pile-f' + f).setAttribute('data-suit-sym', FSYM[FSUITS[f]]);
   }
 
-  /* —— scaling: one phone board, uniform scale to fit stage (phone or Mac) —— */
+  /* ---------------------------------------------------------------- scaling */
   function updateScale() {
-    var stage = $('table-stage');
-    var root = $('table-scale');
-    if (!stage || !root) return;
+    var stage = $('table-stage'), root = $('table-scale');
+    if (!stage || !root || !stage.clientWidth) return;
     var pad = 8;
-    var sw = stage.clientWidth - pad;
-    var sh = stage.clientHeight - pad;
-    // Grow and shrink freely — no desktop-only layout, no artificial 1.15 cap
-    scale = Math.min(sw / BOARD_W, sh / BOARD_H);
+    scale = Math.min((stage.clientWidth - pad) / BOARD_W, (stage.clientHeight - pad) / BOARD_H);
     if (!isFinite(scale) || scale <= 0) scale = 1;
-    root.style.setProperty('--scale', String(scale));
     root.style.transform = 'scale(' + scale + ')';
   }
-
-  /* —— layout positions (board coords) —— */
-  function pileOrigin(pileId) {
-    var pile = $('pile-' + pileId.replace(/^(stock|waste|f\d|t\d)$/, function (m) { return m; }));
-    // ids: stock, waste, f0.., t0..
-    var el = document.querySelector('[data-pile="' + pileId + '"]');
-    if (!el) return { x: 0, y: 0 };
-    var scaleRoot = $('table-scale');
-    var pr = el.getBoundingClientRect();
-    var rr = scaleRoot.getBoundingClientRect();
-    var s = liveScale();
-    return {
-      x: (pr.left - rr.left) / s,
-      y: (pr.top - rr.top) / s
-    };
+  /** client px -> board px (the board is transform-scaled around its centre). */
+  function toBoard(cx, cy) {
+    var r = $('table-scale').getBoundingClientRect();
+    var s = r.width / BOARD_W || 1;
+    return { x: (cx - r.left) / s, y: (cy - r.top) / s };
   }
 
-  function computePilePositions(pileId) {
-    var sz = cardSize();
-    var cards = getPileCards(pileId);
-    var o = pileOrigin(pileId);
-    var fanY = 0, fanX = 0;
-    if (pileId.charAt(0) === 't') fanY = sz.fan;
-    else if (pileId === 'stock') { fanY = 0.35; fanX = 0.25; }
-    else if (pileId.charAt(0) === 'f') { fanY = 0.4; fanX = 0.2; }
-    var out = [];
-    if (pileId === 'waste') {
+  /* ---------------------------------------------------------------- layout (board px, transform-free) */
+  function pileOrigin(id) {
+    var el = document.querySelector('[data-pile="' + id + '"]');
+    return { x: el.offsetLeft, y: el.offsetTop };   // offsetParent = #playfield, which fills the board
+  }
+  function positionsFor(id) {
+    var d = dims(), o = pileOrigin(id), cards = pile(id), out = [], i;
+    if (id === 'waste') {
       var start = Math.max(0, cards.length - 3);
-      for (var w = 0; w < cards.length; w++) {
-        var wi = Math.max(0, w - start);
-        out.push({
-          left: w < start ? o.x : o.x + wi * sz.wfan,
-          top: o.y,
-          z: 20 + w
-        });
-      }
-      return out;
-    }
-    for (var i = 0; i < cards.length; i++) {
-      out.push({ left: o.x + i * fanX, top: o.y + i * fanY, z: 10 + i });
+      for (i = 0; i < cards.length; i++) out.push({ left: o.x + (i < start ? 0 : (i - start) * d.wfan), top: o.y, z: 20 + i });
+    } else if (id.charAt(0) === 't') {
+      var y = o.y;
+      for (i = 0; i < cards.length; i++) { out.push({ left: o.x, top: y, z: 20 + i }); y += cards[i].faceUp ? d.fan : d.fanDown; }
+    } else {
+      for (i = 0; i < cards.length; i++) out.push({ left: o.x, top: o.y, z: 20 + i });
     }
     return out;
   }
-
-  function layoutAll(animateDeal, skipIds) {
-    var sz = cardSize();
-    skipIds = skipIds || {};
-
-    function placePile(cards, pileId, fanY, fanX) {
-      var o = pileOrigin(pileId);
-      fanY = fanY || 0;
-      fanX = fanX || 0;
+  function layoutAll() {
+    PILES.forEach(function (id) {
+      var cards = pile(id), pos = positionsFor(id);
       for (var i = 0; i < cards.length; i++) {
-        var c = cards[i];
-        var entry = cardMap[c.id];
-        if (!entry) continue;
-        var el = entry.el;
-        entry.pile = pileId;
-        entry.index = i;
-        DDCards.setFace(el, c.faceUp);
-        if (skipIds[c.id]) {
-          el.style.zIndex = String(10 + i);
-          continue;
-        }
-        var left = o.x + i * fanX;
-        var top = o.y + i * fanY;
-        el.style.left = left + 'px';
-        el.style.top = top + 'px';
-        el.style.zIndex = String(10 + i);
-        if (animateDeal) {
-          el.classList.remove('deal-in');
-          void el.offsetWidth;
-          el.style.animationDelay = (i * 0.02) + 's';
-          el.classList.add('deal-in');
-        }
+        var el = els[cards[i].id];
+        el.style.left = pos[i].left + 'px';
+        el.style.top = pos[i].top + 'px';
+        el.style.zIndex = String(pos[i].z);
+        if (!el.classList.contains('flipping')) DDCards.setFace(el, cards[i].faceUp);
       }
-    }
-
-    placePile(state.stock, 'stock', 0.35, 0.25);
-    // waste: show last up to 3 with horizontal fan
-    placePile(state.waste, 'waste', 0, 0);
-    if (state.waste.length) {
-      var o = pileOrigin('waste');
-      var start = Math.max(0, state.waste.length - 3);
-      for (var w = 0; w < state.waste.length; w++) {
-        var wc = state.waste[w];
-        var we = cardMap[wc.id];
-        if (!we) continue;
-        DDCards.setFace(we.el, true);
-        we.el.style.zIndex = String(20 + w);
-        if (skipIds[wc.id]) continue;
-        var wi = Math.max(0, w - start);
-        if (w < start) {
-          we.el.style.left = o.x + 'px';
-          we.el.style.top = o.y + 'px';
-        } else {
-          we.el.style.left = (o.x + wi * sz.wfan) + 'px';
-          we.el.style.top = o.y + 'px';
-        }
-      }
-    }
-    for (var f = 0; f < 4; f++) placePile(state.foundations[f], 'f' + f, 0.4, 0.2);
-    for (var t = 0; t < 7; t++) placePile(state.tableau[t], 't' + t, sz.fan, 0);
-
-    // stock empty recycle cue
-    var stockEl = document.querySelector('[data-pile="stock"]');
-    if (stockEl) {
-      stockEl.classList.toggle('empty-recycle', state.stock.length === 0 && state.waste.length > 0);
-    }
-  }
-
-  function mountCards(deck) {
-    var host = $('playfield');
-    // remove old card els
-    Object.keys(cardMap).forEach(function (id) {
-      var e = cardMap[id].el;
-      if (e && e.parentNode) e.parentNode.removeChild(e);
     });
-    cardMap = {};
-    for (var i = 0; i < deck.length; i++) {
-      var c = deck[i];
-      var el = DDCards.createCardEl(c);
-      host.appendChild(el);
-      cardMap[c.id] = { card: c, el: el, pile: null, index: 0 };
+    var stockEl = $('pile-stock');
+    stockEl.classList.toggle('empty-recycle', !pile('stock').length && pile('waste').length > 0);
+  }
+  /** Raise moving cards above everything while they fly, then settle. */
+  function fly(cards) {
+    cards.forEach(function (c, i) { els[c.id].style.zIndex = String(400 + i); });
+    setTimeout(function () { if (state) layoutAll(); }, 260);
+  }
+
+  /* ---------------------------------------------------------------- state / save */
+  function emptyPiles() { var p = {}; PILES.forEach(function (id) { p[id] = []; }); return p; }
+  function serialize() {
+    var piles = {};
+    PILES.forEach(function (id) { piles[id] = pile(id).map(function (c) { return [c.id, c.faceUp ? 1 : 0]; }); });
+    return { v: SAVE_V, seed: state.seed, drawCount: state.drawCount, score: state.score,
+             elapsedMs: currentElapsed(), won: state.won, moves: state.moves, piles: piles };
+  }
+  function restore(snap) {
+    var piles = emptyPiles();
+    PILES.forEach(function (id) {
+      (snap.piles[id] || []).forEach(function (pair) { var c = byId[pair[0]]; c.faceUp = !!pair[1]; piles[id].push(c); });
+    });
+    state = { piles: piles, drawCount: snap.drawCount === 1 ? 1 : 3, score: snap.score | 0,
+              elapsedMs: snap.elapsedMs | 0, won: !!snap.won, seed: snap.seed, moves: snap.moves | 0 };
+  }
+  function validSnap(s) {
+    if (!s || s.v !== SAVE_V || !s.piles) return false;
+    var n = 0, seen = {};
+    for (var i = 0; i < PILES.length; i++) {
+      var arr = s.piles[PILES[i]];
+      if (!arr) return false;
+      for (var j = 0; j < arr.length; j++) { if (!byId[arr[j][0]] || seen[arr[j][0]]) return false; seen[arr[j][0]] = 1; n++; }
     }
+    return n === 52;
   }
-
-  function allCards() {
-    return state.stock.concat(state.waste)
-      .concat(state.foundations[0], state.foundations[1], state.foundations[2], state.foundations[3])
-      .concat(state.tableau[0], state.tableau[1], state.tableau[2], state.tableau[3],
-              state.tableau[4], state.tableau[5], state.tableau[6]);
+  function save() {
+    try {
+      if (!state || state.won) localStorage.removeItem(SAVE_KEY);
+      else localStorage.setItem(SAVE_KEY, JSON.stringify(serialize()));
+    } catch (e) {}
   }
+  function loadSave() {
+    try { var s = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); return validSnap(s) && !s.won ? s : null; } catch (e) { return null; }
+  }
+  function pushUndo() { undoStack.push(serialize()); if (undoStack.length > 200) undoStack.shift(); }
 
-  /* —— deal —— */
+  /* ---------------------------------------------------------------- deal / resume */
+  function ensureDeck() {
+    if (Object.keys(byId).length) return;
+    DDCards.createDeck().forEach(function (c) { byId[c.id] = c; });
+  }
+  function mountCards() {
+    var host = $('playfield');
+    Object.keys(els).forEach(function (id) { var e = els[id]; if (e.parentNode) e.parentNode.removeChild(e); });
+    els = {};
+    Object.keys(byId).forEach(function (id) { var el = DDCards.createCardEl(byId[id]); host.appendChild(el); els[id] = el; });
+  }
   function newGame(opts) {
     opts = opts || {};
-    state.drawCount = opts.drawCount || (els.draw1 && els.draw1.checked ? 1 : 3);
-    state.seed = opts.seed != null ? opts.seed : (Date.now() & 0xffffffff);
-    state.score = 0;
-    state.startedAt = Date.now();
-    state.elapsedMs = 0;
-    state.undo = null;
-    state.won = false;
-    state.stock = [];
-    state.waste = [];
-    state.foundations = [[], [], [], []];
-    state.tableau = [[], [], [], [], [], [], []];
-
-    var deck = DDCards.shuffle(DDCards.createDeck(), state.seed);
-    // deal tableau
-    var i = 0;
-    for (var col = 0; col < 7; col++) {
-      for (var n = 0; n <= col; n++) {
-        var card = deck[i++];
-        card.faceUp = (n === col);
-        state.tableau[col].push(card);
-      }
-    }
-    while (i < deck.length) {
-      var c = deck[i++];
-      c.faceUp = false;
-      state.stock.push(c);
-    }
-
-    mountCards(allCards());
-    bumpPlays();
-    showPlay();
+    ensureDeck();
+    var seed = opts.seed != null ? String(opts.seed) : String(Date.now() % 2147483647);
+    var draw = opts.drawCount || ($('opt-draw1') && $('opt-draw1').checked ? 1 : 3);
+    var order = DDCards.shuffle(DDCards.createDeck(), seed).map(function (c) { return byId[c.id]; });
+    var piles = emptyPiles(), k = 0;
+    for (var col = 0; col < 7; col++) for (var n = 0; n <= col; n++) { var c = order[k++]; c.faceUp = (n === col); piles['t' + col].push(c); }
+    while (k < order.length) { var s = order[k++]; s.faceUp = false; piles.stock.push(s); }
+    state = { piles: piles, drawCount: draw, score: 0, elapsedMs: 0, won: false, seed: seed, moves: 0 };
+    undoStack = [];
+    bumpStat('deal_plays');
+    startPlay(true);
+  }
+  function resumeGame() {
+    var s = loadSave();
+    if (!s) { newGame(); return; }
+    ensureDeck();
+    restore(s);
+    undoStack = [];
+    startPlay(false);
+  }
+  function startPlay(animateDeal) {
+    showScreen('screen-play');
+    $('win-banner').hidden = true;
     updateScale();
-    sfx('shuffle');
-    requestAnimationFrame(function () {
-      layoutAll(true);
-      updateHud();
-      startTimer();
-      // Stagger deal slaps
-      var n = 28;
-      for (var di = 0; di < n; di++) {
-        (function (i) {
-          setTimeout(function () { if (window.DDSound) DDSound.dealOne(i); }, 40 + i * 28);
-        })(di);
-      }
-      // TODO: autosave snapshot
-    });
+    mountCards();
+    var origin = pileOrigin('stock');
+    if (animateDeal && !DDPhysics.reducedMotion) {
+      busy = true;
+      // start every card on the stock, then let the left/top transition deal them out
+      Object.keys(els).forEach(function (id) { var e = els[id]; e.classList.add('no-anim'); e.style.left = origin.x + 'px'; e.style.top = origin.y + 'px'; DDCards.setFace(e, false); });
+      void $('playfield').offsetWidth;
+      var order = [];
+      for (var row = 0; row < 7; row++) for (var col = row; col < 7; col++) order.push(pile('t' + col)[row]);
+      Object.keys(els).forEach(function (id) { els[id].classList.remove('no-anim'); });
+      order.forEach(function (c, i) { els[c.id].style.transitionDelay = (i * 0.025) + 's'; });
+      sfx('shuffle');
+      layoutAll();
+      order.forEach(function (c, i) { if (i % 3 === 0) setTimeout(function () { sfx('deal', i); }, 120 + i * 25); });
+      setTimeout(function () { order.forEach(function (c) { els[c.id].style.transitionDelay = ''; }); busy = false; }, 120 + order.length * 25 + 300);
+    } else {
+      layoutAll();
+    }
+    startTimer();
+    updateHud();
+    save();
   }
 
-  /* —— rules —— */
-  function isRed(card) { return card.color === 'red'; }
-
-  function canStackOnTableau(moving, target) {
-    if (!target) return moving.rankN === 13; // king on empty
-    return isRed(moving) !== isRed(target) && moving.rankN === target.rankN - 1;
+  /* ---------------------------------------------------------------- rules */
+  function fIndexFor(card) { return FSUITS.indexOf(card.suit); }
+  function canFoundation(card, fi) {
+    if (FSUITS[fi] !== card.suit) return false;
+    var t = topOf('f' + fi);
+    return t ? t.rankN === card.rankN - 1 : card.rankN === 1;
   }
-
-  function canStackOnFoundation(moving, foundation) {
-    if (!foundation.length) return moving.rankN === 1 && moving.suit === FSUITS[/* checked by pile */ moving._fIndex != null ? moving._fIndex : -1];
-    // better: check suit of pile
+  function canTableau(card, ti) {
+    var t = topOf('t' + ti);
+    return t ? (t.faceUp && isRed(t) !== isRed(card) && t.rankN === card.rankN + 1) : card.rankN === 13;
+  }
+  /** Movable run starting at index (null if not movable). */
+  function runFrom(id, index) {
+    var p = pile(id);
+    if (!p[index] || !p[index].faceUp) return null;
+    if (id === 'stock') return null;
+    if ((id === 'waste' || id.charAt(0) === 'f') && index !== p.length - 1) return null;
+    for (var i = index; i < p.length - 1; i++) {
+      var a = p[i], b = p[i + 1];
+      if (!b.faceUp || isRed(a) === isRed(b) || a.rankN !== b.rankN + 1) return null;
+    }
+    return p.slice(index);
+  }
+  function legal(cards, to) {
+    if (to.charAt(0) === 'f') return cards.length === 1 && canFoundation(cards[0], +to.slice(1));
+    if (to.charAt(0) === 't') return canTableau(cards[0], +to.slice(1));
     return false;
   }
-
-  function canMoveToFoundation(card, fIndex) {
-    var pile = state.foundations[fIndex];
-    if (!pile.length) return card.rankN === 1 && card.suit === FSUITS[fIndex];
-    var top = pile[pile.length - 1];
-    return card.suit === top.suit && card.rankN === top.rankN + 1;
-  }
-
-  function getPileCards(pileId) {
-    if (pileId === 'stock') return state.stock;
-    if (pileId === 'waste') return state.waste;
-    if (pileId.charAt(0) === 'f') return state.foundations[+pileId.slice(1)];
-    if (pileId.charAt(0) === 't') return state.tableau[+pileId.slice(1)];
+  /** Tap-to-move target: foundation first, then a non-empty tableau column, then an empty column (Kings). */
+  function bestTarget(from, index) {
+    var cards = runFrom(from, index);
+    if (!cards) return null;
+    if (cards.length === 1 && from.charAt(0) !== 'f') {
+      var fi = fIndexFor(cards[0]);
+      if (canFoundation(cards[0], fi)) return 'f' + fi;
+    }
+    var emptyCol = null;
+    for (var t = 0; t < 7; t++) {
+      var id = 't' + t;
+      if (id === from) continue;
+      if (!pile(id).length) { if (emptyCol === null) emptyCol = id; continue; }
+      if (canTableau(cards[0], t)) return id;
+    }
+    if (emptyCol && cards[0].rankN === 13 && !(from.charAt(0) === 't' && index === 0)) return emptyCol;
     return null;
   }
 
-  function faceUpRunFrom(pileId, index) {
-    var pile = getPileCards(pileId);
-    if (!pile || !pile[index] || !pile[index].faceUp) return null;
-    // must be a valid packed descending alt-color run to the end
-    for (var i = index; i < pile.length - 1; i++) {
-      var a = pile[i], b = pile[i + 1];
-      if (!b.faceUp || isRed(a) === isRed(b) || a.rankN !== b.rankN + 1) return null;
-    }
-    return pile.slice(index);
+  /* ---------------------------------------------------------------- moves */
+  function locate(card) {
+    for (var i = 0; i < PILES.length; i++) { var j = pile(PILES[i]).indexOf(card); if (j >= 0) return { pile: PILES[i], index: j }; }
+    return null;
   }
-
-  function removeFromPile(pileId, index) {
-    var pile = getPileCards(pileId);
-    return pile.splice(index, pile.length - index);
+  function doMove(from, index, to) {
+    if (!state || state.won || from === to) return false;
+    var cards = runFrom(from, index);
+    if (!cards || !legal(cards, to)) return false;
+    pushUndo();
+    pile(from).splice(index, cards.length);
+    Array.prototype.push.apply(pile(to), cards);
+    if (to.charAt(0) === 'f') state.score += 10;
+    else if (from === 'waste') state.score += 5;
+    else if (from.charAt(0) === 'f') state.score = Math.max(0, state.score - 15);
+    var revealed = null;
+    if (from.charAt(0) === 't') { var t = topOf(from); if (t && !t.faceUp) { t.faceUp = true; revealed = t; } }
+    state.moves++;
+    layoutAll();
+    fly(cards);
+    if (revealed) DDPhysics.flipCard(els[revealed.id], true);
+    sfx('place');
+    afterMove();
+    return true;
   }
-
-  function revealTop(pileId) {
-    if (pileId.charAt(0) !== 't') return;
-    var pile = getPileCards(pileId);
-    if (pile.length) {
-      var top = pile[pile.length - 1];
-      if (!top.faceUp) {
-        top.faceUp = true;
-        var el = cardMap[top.id].el;
-        DDPhysics.flipCard(el, true);
-      }
-    }
-  }
-
-  function checkWin() {
-    var n = 0;
-    for (var i = 0; i < 4; i++) n += state.foundations[i].length;
-    if (n === 52) {
-      state.won = true;
-      stopTimer();
-      var bonus = Math.max(0, Math.floor((700000 - state.elapsedMs) / 1000));
-      state.score += bonus;
-      updateHud();
-      // TODO: persist high score / best time
-      var banner = $('win-banner');
-      var detail = $('win-detail');
-      if (detail) {
-        detail.textContent = 'Score ' + state.score + ' · time ' + formatTime(state.elapsedMs);
-      }
-      if (banner) banner.hidden = false;
-      sfx('win');
-      saveHighIfBetter();
-    }
-  }
-
-  /* —— stock —— */
   function flipStock() {
-    if (drag && drag.isDragging()) return;
-    if (state.stock.length === 0) {
-      if (!state.waste.length) return;
-      // recycle
-      while (state.waste.length) {
-        var c = state.waste.pop();
-        c.faceUp = false;
-        state.stock.push(c);
-      }
+    if (!state || state.won) return false;
+    var st = pile('stock'), wa = pile('waste');
+    if (!st.length && !wa.length) return false;
+    pushUndo();
+    if (!st.length) {
+      while (wa.length) { var c = wa.pop(); c.faceUp = false; st.push(c); }
       state.score = Math.max(0, state.score - 2);
-      layoutAll(false);
+      state.moves++;
+      layoutAll();
       sfx('shuffle');
-      updateHud();
-      return;
+    } else {
+      var n = Math.min(state.drawCount, st.length), drawn = [];
+      for (var i = 0; i < n; i++) { var d = st.pop(); d.faceUp = true; wa.push(d); drawn.push(d); }
+      state.moves++;
+      layoutAll();
+      fly(drawn);
+      drawn.forEach(function (d) { DDCards.setFace(els[d.id], false); DDPhysics.flipCard(els[d.id], true); });
+      sfx('flip');
     }
-    var n = Math.min(state.drawCount, state.stock.length);
-    var flipped = [];
-    for (var i = 0; i < n; i++) {
-      var card = state.stock.pop();
-      card.faceUp = true;
-      state.waste.push(card);
-      flipped.push(card);
-    }
-    layoutAll(false);
+    afterMove();
+    return true;
+  }
+  function undo() {
+    if (!undoStack.length || !state || busy || state.won) return false;
+    var el = currentElapsed();
+    restore(undoStack.pop());
+    state.elapsedMs = el;            // undo never rewinds the clock
+    startedAt = timerId ? Date.now() : 0;
+    layoutAll();
     sfx('flip');
-    var top = flipped[flipped.length - 1];
-    if (top && cardMap[top.id]) {
-      DDPhysics.flipCard(cardMap[top.id].el, true);
-    }
     updateHud();
+    save();
+    return true;
   }
-
-  /* —— drag integration —— */
-  function pileAtPoint(boardX, boardY) {
-    var piles = document.querySelectorAll('.pile');
-    var scaleRoot = $('table-scale');
-    var rr = scaleRoot.getBoundingClientRect();
-    var best = null, bestArea = Infinity;
-    for (var i = 0; i < piles.length; i++) {
-      var p = piles[i];
-      var r = p.getBoundingClientRect();
-      var s = liveScale();
-      var left = (r.left - rr.left) / s;
-      var top = (r.top - rr.top) / s;
-      var w = r.width / s;
-      var h = r.height / s;
-      // expand tableau hit height based on cards
-      var pid = p.getAttribute('data-pile');
-      if (pid && pid.charAt(0) === 't') {
-        var cards = getPileCards(pid);
-        var fan = cardSize().fan;
-        h = Math.max(h, cardSize().h + Math.max(0, cards.length - 1) * fan);
-      }
-      if (pid === 'waste') {
-        w = Math.max(w, cardSize().w + 2 * cardSize().wfan);
-      }
-      if (boardX >= left && boardX <= left + w && boardY >= top && boardY <= top + h) {
-        var area = w * h;
-        if (area < bestArea) { bestArea = area; best = pid; }
-      }
-    }
-    return best;
+  function afterMove() {
+    updateHud();
+    if (countFoundation() === 52) win();
+    save();
   }
-
-  function setupDrag() {
-    drag = DDPhysics.createDragController({
-      scaleRoot: $('table-scale'),
-      eventRoot: $('table-scale'),
-      getScale: function () { return liveScale(); },
-      canDrag: function (el) {
-        var id = el.dataset.id;
-        var entry = cardMap[id];
-        if (!entry) return false;
-        var card = entry.card;
-        if (!card.faceUp) return false;
-        if (entry.pile === 'stock') return false;
-        if (entry.pile && entry.pile.charAt(0) === 'f') {
-          // allow dragging foundation top only
-          var fp = getPileCards(entry.pile);
-          return fp[fp.length - 1] === card;
-        }
-        if (entry.pile === 'waste') {
-          return state.waste[state.waste.length - 1] === card;
-        }
-        if (entry.pile && entry.pile.charAt(0) === 't') {
-          return !!faceUpRunFrom(entry.pile, entry.index);
-        }
-        return false;
-      },
-      onPick: function (el) {
-        var entry = cardMap[el.dataset.id];
-        var pileId = entry.pile;
-        var run;
-        if (pileId.charAt(0) === 't') {
-          run = faceUpRunFrom(pileId, entry.index);
-        } else {
-          run = [entry.card];
-        }
-        if (!run) return null;
-        var stackEls = run.map(function (c) { return cardMap[c.id].el; });
-        return {
-          stackEls: stackEls,
-          cards: run,
-          fromPile: pileId,
-          fromIndex: entry.index
-        };
-      },
-      onDrop: function (payload, boardX, boardY) {
-        var target = pileAtPoint(boardX, boardY);
-        var from = payload.home.fromPile;
-        var cards = payload.home.cards;
-        var moving = cards[0];
-
-        if (!target || target === from || target === 'stock') {
-          sfx('bounce');
-          return { ok: false };
-        }
-
-        // waste is not a drop target for moves (only receives from stock)
-        if (target === 'waste') return { ok: false };
-
-        var ok = false;
-        if (target.charAt(0) === 'f') {
-          if (cards.length !== 1) return { ok: false };
-          var fi = +target.slice(1);
-          ok = canMoveToFoundation(moving, fi);
-          if (ok) {
-            removeFromPile(from, payload.home.fromIndex);
-            state.foundations[fi].push(moving);
-            if (from === 'waste' || from.charAt(0) === 't') state.score += 10;
-            revealTop(from);
-          }
-        } else if (target.charAt(0) === 't') {
-          var ti = +target.slice(1);
-          var dest = state.tableau[ti];
-          var top = dest.length ? dest[dest.length - 1] : null;
-          ok = canStackOnTableau(moving, top);
-          if (ok) {
-            var moved = removeFromPile(from, payload.home.fromIndex);
-            for (var m = 0; m < moved.length; m++) dest.push(moved[m]);
-            if (from === 'waste') state.score += 5;
-            if (from.charAt(0) === 'f') state.score = Math.max(0, state.score - 15);
-            revealTop(from);
-          }
-        }
-
-        if (!ok) {
-          sfx('bounce');
-          return { ok: false };
-        }
-
-        sfx('slap');
-        var positions = computePilePositions(target).slice(-cards.length);
-        // layout everyone else immediately; moving stack snaps via physics
-        var movingIds = {};
-        for (var mi = 0; mi < cards.length; mi++) movingIds[cards[mi].id] = true;
-        layoutAll(false, movingIds);
-        updateHud();
-        checkWin();
-        setTimeout(function () { layoutAll(false); }, 320);
-        return { ok: true, positions: positions };
-      }
-    });
-
-    // stock tap (cards live in playfield, not inside the pile div)
-    $('playfield').addEventListener('click', function (e) {
-      if (drag && drag.isDragging()) return;
-      var cardEl = e.target.closest && e.target.closest('.card-el');
-      if (cardEl) {
-        var entry = cardMap[cardEl.dataset.id];
-        if (entry && entry.pile === 'stock') { flipStock(); return; }
-        return; // other cards: drag handles them
-      }
-      var pile = e.target.closest && e.target.closest('.pile');
-      if (pile && pile.getAttribute('data-pile') === 'stock') flipStock();
-    });
-  }
-
-  /* —— hud / timer / stats —— */
-  function formatTime(ms) {
-    var s = Math.floor(ms / 1000);
-    var m = Math.floor(s / 60);
-    s = s % 60;
-    return m + ':' + (s < 10 ? '0' : '') + s;
-  }
-
-  function updateHud() {
-    if (els.score) els.score.textContent = String(state.score);
-    if (els.time) els.time.textContent = formatTime(state.elapsedMs);
-  }
-
-  function startTimer() {
+  function countFoundation() { return pile('f0').length + pile('f1').length + pile('f2').length + pile('f3').length; }
+  function win() {
+    state.elapsedMs = currentElapsed();
+    state.won = true;
     stopTimer();
-    timerId = setInterval(function () {
-      if (state.won) return;
-      state.elapsedMs = Date.now() - state.startedAt;
-      updateHud();
-    }, 500);
-  }
-  function stopTimer() {
-    if (timerId) { clearInterval(timerId); timerId = null; }
-  }
-
-  function bumpPlays() {
-    try {
-      var n = parseInt(localStorage.getItem('deal_plays') || '0', 10) + 1;
-      localStorage.setItem('deal_plays', String(n));
-    } catch (e) {}
-    refreshStats();
-  }
-
-  function saveHighIfBetter() {
+    var bonus = Math.max(0, Math.floor((700000 - state.elapsedMs) / 1000));
+    state.score += bonus;
     try {
       var hi = parseInt(localStorage.getItem('deal_highScore') || '0', 10);
       if (state.score > hi) localStorage.setItem('deal_highScore', String(state.score));
       var best = parseInt(localStorage.getItem('deal_bestTimeMs') || '0', 10);
       if (!best || state.elapsedMs < best) localStorage.setItem('deal_bestTimeMs', String(state.elapsedMs));
+      localStorage.removeItem(SAVE_KEY);
     } catch (e) {}
-    refreshStats();
+    updateHud();
+    $('win-detail').textContent = 'Score ' + state.score + ' (time bonus ' + bonus + ') \u00b7 ' + fmtTime(state.elapsedMs);
+    setTimeout(function () { $('win-banner').hidden = false; sfx('win'); }, 350);
   }
 
-  function refreshStats() {
-    try {
-      var plays = localStorage.getItem('deal_plays') || '0';
-      var hi = localStorage.getItem('deal_highScore');
-      var best = localStorage.getItem('deal_bestTimeMs');
-      if ($('stat-plays')) $('stat-plays').textContent = plays;
-      if ($('stat-high')) $('stat-high').textContent = hi || '—';
-      if ($('stat-best')) $('stat-best').textContent = best ? formatTime(+best) : '—';
-    } catch (e) {}
+  /* ---------------------------------------------------------------- input */
+  function cardOf(el) { return el ? byId[el.dataset.id] : null; }
+  function nudge(el) {
+    if (!el) return;
+    el.classList.remove('nope'); void el.offsetWidth; el.classList.add('nope');
+    setTimeout(function () { el.classList.remove('nope'); }, 400);
   }
-
-  /* —— screens —— */
-  function hideAll() {
-    ['screen-home', 'screen-play', 'screen-about'].forEach(function (id) {
-      var s = $(id); if (s) s.hidden = true;
-    });
+  function onTap(cardEl, pileEl) {
+    if (!state || busy || state.won) return;
+    var card = cardOf(cardEl);
+    var where = card ? locate(card) : null;
+    if ((where && where.pile === 'stock') || (pileEl && pileEl.getAttribute('data-pile') === 'stock')) { flipStock(); return; }
+    if (!where || !card.faceUp) return;
+    var to = bestTarget(where.pile, where.index);
+    if (!to || !doMove(where.pile, where.index, to)) { nudge(cardEl); sfx('bounce'); }
   }
-  function showHome() {
-    stopTimer();
-    hideAll();
-    $('screen-home').hidden = false;
-    refreshStats();
-    // resume stub
-    if ($('resume-box')) $('resume-box').hidden = true; // TODO: wire deal_save
+  function canDrag(cardEl) {
+    if (!state || busy || state.won) return false;
+    var card = cardOf(cardEl), w = card && locate(card);
+    return !!(w && runFrom(w.pile, w.index));
   }
-  function showPlay() {
-    hideAll();
-    $('screen-play').hidden = false;
-    if ($('win-banner')) $('win-banner').hidden = true;
-    updateScale();
+  function onPick(cardEl) {
+    var card = cardOf(cardEl), w = locate(card), run = runFrom(w.pile, w.index);
+    if (!run) return null;
+    return { from: w.pile, index: w.index, cards: run, els: run.map(function (c) { return els[c.id]; }) };
   }
-  function showAbout() {
-    hideAll();
-    $('screen-about').hidden = false;
-  }
-
-  /* —— init —— */
-  function init() {
-    els.score = $('hud-score');
-    els.time = $('hud-time');
-    els.draw1 = $('opt-draw1');
-
-    buildPlanks();
-    refreshStats();
-
-    $('btn-new').addEventListener('click', function () { newGame(); });
-    $('btn-redeal').addEventListener('click', function () { newGame(); });
-    $('btn-home').addEventListener('click', showHome);
-    $('btn-win-new').addEventListener('click', function () { newGame(); });
-    $('btn-win-home').addEventListener('click', showHome);
-    $('btn-about-back').addEventListener('click', showHome);
-    $('btn-undo').addEventListener('click', function () {
-      // TODO: undo last move
-    });
-
-    document.querySelectorAll('.about-link').forEach(function (a) {
-      a.addEventListener('click', function (e) {
-        e.preventDefault();
-        showAbout();
-      });
-    });
-
-    setupDrag();
-    window.addEventListener('resize', function () {
-      updateScale();
-      layoutAll(false);
-    });
-    // orientation / visual viewport
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function () {
-        updateScale();
-        layoutAll(false);
-      });
+  /** Drop rectangle a pile accepts (board px). */
+  function dropRect(id) {
+    var d = dims(), p = pile(id);
+    if (id.charAt(0) === 't' && p.length) {
+      var pos = positionsFor(id), last = pos[pos.length - 1];
+      return { x: last.left, y: pos[0].top, w: d.w, h: last.top - pos[0].top + d.h + d.fan };
     }
-
-    if (location.hash === '#about') showAbout();
-    else showHome();
-
-    // deep link ?play=1
-    if (/[?&]play=1/.test(location.search)) newGame();
+    var o = pileOrigin(id);
+    return { x: o.x, y: o.y, w: d.w, h: d.h };
+  }
+  function overlap(a, b) {
+    var w = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), h = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+    return w > 0 && h > 0 ? w * h : 0;
+  }
+  function inside(pt, r) { return pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h; }
+  function onDrop(pick, info) {
+    var d = dims(), cards = pick.cards;
+    var cardRect = { x: info.cardLeft, y: info.cardTop, w: d.w, h: d.h };
+    var targets = PILES.filter(function (id) { return id !== pick.from && (id.charAt(0) === 't' || id.charAt(0) === 'f'); });
+    // 1) the legal pile the dragged card overlaps most
+    var best = null, bestArea = 0;
+    targets.forEach(function (id) {
+      if (!legal(cards, id)) return;
+      var a = overlap(cardRect, dropRect(id));
+      if (a > bestArea) { bestArea = a; best = id; }
+    });
+    // 2) fling: project the card centre along the release velocity (capped) and look for a legal pile there
+    if (!best) {
+      var speed = Math.sqrt(info.vx * info.vx + info.vy * info.vy);
+      if (speed > 0.6) {
+        var t = Math.min(220, 180 / speed * 1.2);
+        var c = { x: info.cardLeft + d.w / 2 + info.vx * t, y: info.cardTop + d.h / 2 + info.vy * t };
+        targets.forEach(function (id) { if (!best && legal(cards, id) && inside(c, dropRect(id))) best = id; });
+      }
+    }
+    if (!best) { sfx('bounce'); setTimeout(function () { if (state) layoutAll(); }, 450); return false; }
+    return doMove(pick.from, pick.index, best);
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  /* ---------------------------------------------------------------- hud / timer / stats */
+  function fmtTime(ms) { var s = Math.floor(ms / 1000), m = Math.floor(s / 60); s %= 60; return m + ':' + (s < 10 ? '0' : '') + s; }
+  function currentElapsed() { return state ? (state.won ? state.elapsedMs : state.elapsedMs + (startedAt ? Date.now() - startedAt : 0)) : 0; }
+  function updateHud() {
+    if (!state) return;
+    $('hud-score').textContent = String(state.score);
+    $('hud-time').textContent = fmtTime(currentElapsed());
+    $('btn-undo').disabled = !undoStack.length;
+  }
+  function startTimer() {
+    stopTimer();
+    if (state.won) return;
+    startedAt = Date.now();
+    timerId = setInterval(updateHud, 500);
+  }
+  function stopTimer() {
+    if (timerId) { clearInterval(timerId); timerId = null; }
+    if (state && startedAt && !state.won) state.elapsedMs += Date.now() - startedAt;
+    startedAt = 0;
+  }
+  function bumpStat(k) { try { localStorage.setItem(k, String(parseInt(localStorage.getItem(k) || '0', 10) + 1)); } catch (e) {} }
+  function refreshHome() {
+    try {
+      $('stat-plays').textContent = localStorage.getItem('deal_plays') || '0';
+      $('stat-high').textContent = localStorage.getItem('deal_highScore') || '\u2014';
+      var b = localStorage.getItem('deal_bestTimeMs');
+      $('stat-best').textContent = b ? fmtTime(+b) : '\u2014';
+    } catch (e) {}
+    var s = loadSave();
+    $('resume-box').hidden = !s;
+    if (s) $('resume-detail').textContent = 'Score ' + s.score + ' \u00b7 ' + fmtTime(s.elapsedMs) + ' \u00b7 Draw ' + s.drawCount;
+  }
+
+  /* ---------------------------------------------------------------- screens */
+  function showScreen(id) {
+    ['screen-home', 'screen-play', 'screen-about'].forEach(function (s) { $(s).hidden = (s !== id); });
+    document.body.setAttribute('data-screen', id);
+  }
+  function goHome() {
+    if (state && !state.won) { stopTimer(); save(); }
+    showScreen('screen-home');
+    refreshHome();
+  }
+
+  /* ---------------------------------------------------------------- read-only test/debug hook */
+  function publicState() {
+    if (!state) return null;
+    var piles = {};
+    PILES.forEach(function (id) {
+      piles[id] = pile(id).map(function (c) { return { id: c.id, suit: c.suit, rank: c.rankN, color: c.color, up: !!c.faceUp }; });
+    });
+    return { piles: piles, score: state.score, moves: state.moves, drawCount: state.drawCount, seed: state.seed,
+             won: state.won, undo: undoStack.length, busy: busy, elapsedMs: currentElapsed(),
+             screen: document.body.getAttribute('data-screen') };
+  }
+  var hook = {};
+  Object.defineProperty(hook, 'state', { value: function () { return JSON.parse(JSON.stringify(publicState())); } });
+  Object.defineProperty(hook, 'scale', { value: function () { return scale; } });
+  Object.defineProperty(window, '__dd', { value: Object.freeze(hook) });
+
+  /* ---------------------------------------------------------------- init */
+  function init() {
+    buildPlanks();
+    ensureDeck();
+    $('btn-new').addEventListener('click', function () { newGame(); });
+    $('btn-resume').addEventListener('click', resumeGame);
+    $('btn-redeal').addEventListener('click', function () { newGame({ drawCount: state ? state.drawCount : null }); });
+    $('btn-home').addEventListener('click', goHome);
+    $('btn-undo').addEventListener('click', undo);
+    $('btn-win-new').addEventListener('click', function () { newGame({ drawCount: state ? state.drawCount : null }); });
+    $('btn-win-home').addEventListener('click', goHome);
+    $('btn-about-back').addEventListener('click', goHome);
+    Array.prototype.forEach.call(document.querySelectorAll('.about-link'), function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); showScreen('screen-about'); });
+    });
+    ctl = DDPhysics.createController({ root: $('table-scale'), toBoard: toBoard, canDrag: canDrag, onPick: onPick, onDrop: onDrop, onTap: onTap });
+    function relayout() { if (!$('screen-play').hidden) { updateScale(); } }
+    window.addEventListener('resize', relayout);
+    window.addEventListener('orientationchange', relayout);
+    if (window.visualViewport) window.visualViewport.addEventListener('resize', relayout);
+    document.addEventListener('visibilitychange', function () {
+      if (!state || state.won || $('screen-play').hidden) return;
+      if (document.hidden) { stopTimer(); save(); } else startTimer();
+    });
+    window.addEventListener('pagehide', function () { if (state && !state.won && !$('screen-play').hidden) { stopTimer(); save(); } });
+
+    var q = params();
+    if (q.draw === '1' && $('opt-draw1')) $('opt-draw1').checked = true;
+    if (q.play === '1') {
+      if (q.seed != null) newGame({ seed: q.seed, drawCount: q.draw === '1' ? 1 : 3 });
+      else if (loadSave()) resumeGame();
+      else newGame();
+    } else if (location.hash === '#about') showScreen('screen-about');
+    else goHome();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

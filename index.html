@@ -9,10 +9,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Bungee&family=Caveat:wght@400;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="assets/css/game.css">
+<link rel="stylesheet" href="assets/css/game.css?v=3">
 </head>
 <body>
-<button id="sound-bar" class="sound-bar" type="button" hidden>Sound is paused. Tap here to turn it on.</button>
+<!-- Fixed, non-interactive hint: never in the page flow (so hiding it cannot shift the layout) and never blocks taps. -->
+<div id="sound-hint" class="sound-hint" aria-live="polite">Sound starts after your first tap</div>
 
 <!-- HOME -->
 <section id="screen-home" class="screen">
@@ -22,6 +23,7 @@
   <div id="resume-box" class="card paper-card" hidden>
     <span class="tape tape-l"></span>
     <button id="btn-resume" class="btn big sage" type="button">Resume deal</button>
+    <p id="resume-detail" class="hint center"></p>
   </div>
 
   <div class="card paper-card">
@@ -41,7 +43,7 @@
       <div><small>High score</small><b id="stat-high">—</b></div>
       <div><small>Best time</small><b id="stat-best">—</b></div>
     </div>
-    <p class="hint center">Save &amp; scoring land fully later in Wave 1.</p>
+    <p class="hint center">Your deal saves itself after every move.</p>
   </div>
 
   <p class="center"><a class="about-link" href="#about">About</a></p>
@@ -60,7 +62,7 @@
     <div id="snd-panel" class="snd-panel" role="dialog" aria-label="Sound" hidden>
       <label class="snd-row"><input id="set-mute" type="checkbox"><span>Mute</span></label>
       <label class="snd-row snd-vol"><span>Volume <b id="set-vol-val">70</b></span><input id="set-vol" type="range" min="0" max="100" step="1"></label>
-      <p class="snd-note">Card slap + desert radio bed (synth). iPhone silent switch is not readable from the web.</p>
+      <p class="snd-note">Cards + desert radio from Desert Ranger. On iPhone the ring/silent switch also mutes it.</p>
     </div>
   </header>
 
@@ -120,9 +122,9 @@
   </div>
 </section>
 
-<script src="assets/js/sound.js"></script>
-<script src="assets/js/cards.js"></script>
-<script src="assets/js/physics.js"></script>
-<script src="assets/js/game.js"></script>
+<script src="assets/js/sound.js?v=3"></script>
+<script src="assets/js/cards.js?v=3"></script>
+<script src="assets/js/physics.js?v=3"></script>
+<script src="assets/js/game.js?v=3"></script>
 </body>
 </html>

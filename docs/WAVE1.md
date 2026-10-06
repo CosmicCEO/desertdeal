@@ -22,21 +22,21 @@ Playable solo Klondike on a worn picnic-table look. Static site. No build step. 
 - [x] Stock/waste flip with a short rotation (scale-X)
 - [x] Reduced-motion path
 
-### 3. Full Klondike — **partial**
+### 3. Full Klondike — **done** (tap-to-move + drag)
 - [x] Deal, Draw 3 (default) + Draw 1 option
 - [x] Tableau / foundation / stock / waste moves (basic validation)
 - [x] Win detect, New game
-- [ ] Undo last move (button stubbed)
+- [x] Undo (header button; steps back through moves)
 - [x] Live score + timer (Microsoft-style scoring hooks; polish TBD)
 
-### 4. Save + stats — **stubbed**
-- [ ] Autosave / resume mid-game (`localStorage`) — TODO
-- [x] Plays count on home; high score / best time written on win (resume UI stubbed)
+### 4. Save + stats — **done**
+- [x] Autosave / resume mid-game (`localStorage` `deal_save`)
+- [x] Plays count, high score, best time on home
 
 ### 5. Polish — **in progress**
-- [x] Web Audio card slap / shuffle / deal / win (synth)
-- [x] Desert radio bed (synth hiss + chatter burble)
-- [x] Sound bar (iOS-friendly), mute/volume persisted
+- [x] Card sounds: recorded Kenney CC0 clips (synth removed)
+- [x] Desert Ranger ambience bed + random radio chatter every 45-90 s
+- [x] First-tap unlock (non-blocking hint), mute/volume persisted
 - [x] Phone layout everywhere; Mac scales board with window; tap targets ≥ 44px on chrome
 - [x] About screen (Jerod / CosmicCEO; desert-family nod)
 
@@ -54,3 +54,6 @@ docs/                rules, design, wave contract, pitch text
 
 ## Non-goals for Wave 1
 PHP/MySQL, online rooms, accounts, Matter.js unless CSS physics fails, Dust Storm mechanic, committing binary pitch art, embedding paid stock photos.
+
+## Verification
+`dev/test_play.py` (Playwright, headless Chromium) plays seed 43 to a win at 390x844 (touch) and 1440x900 (mouse) through real taps and drags, checking `window.__dd.state()` after every move, plus illegal drop/tap, undo, reload + Resume, stats. Run it before every push.

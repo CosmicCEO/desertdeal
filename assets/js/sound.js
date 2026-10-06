@@ -1,348 +1,193 @@
-/* Desert Deal — Web Audio synth (card SFX + desert radio bed).
-   No sample files: sibling style (Bandit). Unlock on first user gesture (iOS).
-   Keys: deal_mute, deal_vol. Web cannot reliably read the iPhone silent switch. */
+/* Desert Deal — recorded sounds (no synthesis).
+   Cards: Kenney "Casino Audio" (CC0). Radio + ambience: Desert Ranger clips (Jerod's own).
+   Web Audio, decoded once after the first tap (iOS unlock). On iOS, Web Audio follows the
+   ring/silent switch; we also ask for the 'ambient' audio session where Safari supports it.
+   localStorage: deal_mute ('1'/'0'), deal_vol (0..1). */
 (function (global) {
   'use strict';
 
-  var ctx = null;
-  var master = null;
-  var sfxGain = null;
-  var radioGain = null;
-  var unlocked = false;
-  var muted = false;
-  var volume = 0.7;
-  var buffers = {};
-  var radioTimer = null;
-  var hissNodes = null;
-  var TAU = Math.PI * 2;
+  var BASE = 'assets/audio/';
+  var SFX = {
+    deal: ['cards/deal-1.mp3', 'cards/deal-2.mp3', 'cards/deal-3.mp3'],
+    place: ['cards/place-1.mp3', 'cards/place-2.mp3', 'cards/place-3.mp3'],
+    flip: ['cards/flip-1.mp3', 'cards/flip-2.mp3'],
+    bounce: ['cards/bounce.mp3'],
+    shuffle: ['cards/shuffle.mp3'],
+    win: ['cards/win-fan.mp3']
+  };
+  var SFX_GAIN = { deal: 0.35, place: 0.5, flip: 0.4, bounce: 0.35, shuffle: 0.4, win: 0.55 };
+  // Desert Ranger chatter, grouped as the short exchanges they were written as.
+  var CONVOS = [];
+  [[1, 3], [2, 3], [3, 3], [4, 3], [5, 2], [6, 4], [7, 2], [8, 3], [9, 4], [10, 4], [11, 4], [12, 4]].forEach(function (c) {
+    var lines = [];
+    for (var i = 1; i <= c[1]; i++) lines.push('radio/chatter/ch' + (c[0] < 10 ? '0' : '') + c[0] + '-' + i + '.mp3');
+    CONVOS.push(lines);
+  });
+  var FX = { click: 'radio/fx/radio-click-01.mp3', squelch: ['radio/fx/radio-squelch-01.mp3', 'radio/fx/radio-squelch-02.mp3', 'radio/fx/radio-squelch-03.mp3'] };
+  var BED = 'amb/amb-bed-01.mp3';
+  var BED_GAIN = 0.12, RADIO_GAIN = 0.32;
+  var CHATTER_MIN_MS = 45000, CHATTER_MAX_MS = 90000;
 
-  function loadSettings() {
+  var ctx = null, master = null, sfxBus = null, ambBus = null;
+  var buffers = {}, loading = {};
+  var unlocked = false, muted = false, volume = 0.7;
+  var bedSrc = null, chatterTimer = null, talking = false, lastConvo = -1;
+
+  function load() {
     try {
       muted = localStorage.getItem('deal_mute') === '1';
       var v = parseFloat(localStorage.getItem('deal_vol'));
       if (isFinite(v)) volume = Math.max(0, Math.min(1, v));
     } catch (e) {}
   }
-  function saveSettings() {
-    try {
-      localStorage.setItem('deal_mute', muted ? '1' : '0');
-      localStorage.setItem('deal_vol', String(volume));
-    } catch (e) {}
-  }
+  function persist() { try { localStorage.setItem('deal_mute', muted ? '1' : '0'); localStorage.setItem('deal_vol', String(volume)); } catch (e) {} }
 
-  function ensureCtx() {
+  function makeCtx() {
     if (ctx) return ctx;
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return null;
+    try { if (navigator.audioSession) navigator.audioSession.type = 'ambient'; } catch (e) {}
     ctx = new AC();
-    master = ctx.createGain();
-    master.gain.value = muted ? 0 : volume;
-    master.connect(ctx.destination);
-    sfxGain = ctx.createGain();
-    sfxGain.gain.value = 1;
-    sfxGain.connect(master);
-    radioGain = ctx.createGain();
-    radioGain.gain.value = 0.35;
-    radioGain.connect(master);
+    master = ctx.createGain(); master.connect(ctx.destination);
+    sfxBus = ctx.createGain(); sfxBus.connect(master);
+    ambBus = ctx.createGain(); ambBus.connect(master);
+    applyGain();
     return ctx;
   }
+  function applyGain() { if (master) master.gain.value = muted ? 0 : volume; }
 
-  function make(dur, fn) {
-    var sr = ctx.sampleRate;
-    var n = Math.max(1, Math.floor(dur * sr));
-    var buf = ctx.createBuffer(1, n, sr);
-    var d = buf.getChannelData(0);
-    for (var i = 0; i < n; i++) d[i] = fn(i / sr, i);
-    var fade = Math.min(n, Math.floor(0.004 * sr));
-    for (var k = 0; k < n; k++) {
-      var v = d[k];
-      d[k] = v > 1 ? 1 : v < -1 ? -1 : v;
-      if (k > n - fade) d[k] *= (n - k) / fade;
-      if (k < fade) d[k] *= k / fade;
-    }
-    return buf;
+  function fetchBuf(path) {
+    if (buffers[path]) return Promise.resolve(buffers[path]);
+    if (loading[path]) return loading[path];
+    loading[path] = fetch(BASE + path).then(function (r) { if (!r.ok) throw new Error(path + ' ' + r.status); return r.arrayBuffer(); })
+      .then(function (ab) { return new Promise(function (res, rej) { ctx.decodeAudioData(ab, res, rej); }); })
+      .then(function (b) { buffers[path] = b; return b; })
+      .catch(function (e) { delete loading[path]; console.warn('[sound]', e && e.message); return null; });
+    return loading[path];
   }
-
-  function env(t, a, dcy) {
-    return t < a ? t / a : Math.exp(-(t - a) / dcy);
+  function play(path, bus, gain, rate) {
+    if (!unlocked || muted || !ctx) return null;
+    var b = buffers[path];
+    if (!b) { fetchBuf(path); return null; }
+    var src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = b;
+    if (rate) src.playbackRate.value = rate;
+    g.gain.value = gain;
+    src.connect(g); g.connect(bus);
+    src.start();
+    return src;
   }
+  function pick(list) { return list[Math.floor(Math.random() * list.length)]; }
 
-  function buildBuffers() {
-    if (!ctx || buffers.slap) return;
-    var lp = 0;
-    function noise(k) {
-      lp += k * ((Math.random() * 2 - 1) - lp);
-      return lp;
-    }
-
-    // Card slap onto wood
-    buffers.slap = make(0.12, function (t) {
-      var body = env(t, 0.001, 0.028) * (0.55 * Math.sin(TAU * (180 - 90 * t) * t) + 0.35 * noise(0.55));
-      var tick = env(t, 0.0004, 0.008) * 0.4 * (Math.random() * 2 - 1);
-      return body + tick;
-    });
-
-    // Soft legal snap
-    buffers.snap = make(0.09, function (t) {
-      return env(t, 0.001, 0.02) * (0.4 * Math.sin(TAU * 420 * t) + 0.25 * noise(0.4));
-    });
-
-    // Illegal bounce
-    buffers.bounce = make(0.18, function (t) {
-      var e = env(t, 0.002, 0.05);
-      return e * (0.35 * Math.sin(TAU * (140 + 40 * Math.sin(TAU * 8 * t)) * t) + 0.2 * noise(0.45));
-    });
-
-    // Stock flip rustle
-    buffers.flip = make(0.16, function (t) {
-      return env(t, 0.004, 0.04) * (0.45 * noise(0.6) + 0.15 * Math.sin(TAU * 900 * t));
-    });
-
-    // Shuffle / deal cascade unit
-    buffers.deal = make(0.07, function (t) {
-      return env(t, 0.001, 0.015) * (0.5 * noise(0.7) + 0.2 * Math.sin(TAU * 600 * t));
-    });
-
-    buffers.shuffle = make(0.55, function (t) {
-      var s = 0;
-      for (var i = 0; i < 8; i++) {
-        var u = t - i * 0.055;
-        if (u < 0 || u > 0.08) continue;
-        s += env(u, 0.001, 0.02) * (0.35 * noise(0.65) + 0.12 * Math.sin(TAU * (500 + 80 * i) * u));
-      }
-      return s;
-    });
-
-    // Win chime (desert-warm, not casino)
-    buffers.win = make(1.8, function (t) {
-      var notes = [[0, 392], [0.18, 493.88], [0.36, 587.33], [0.58, 784], [0.95, 659.25]];
-      var s = 0;
-      for (var i = 0; i < notes.length; i++) {
-        var u = t - notes[i][0];
-        if (u < 0 || u > 0.7) continue;
-        var f = notes[i][1];
-        var e = (u < 0.01 ? u / 0.01 : 1) * Math.exp(-u / 0.28);
-        s += e * (0.35 * Math.sin(TAU * f * u) + 0.18 * Math.sin(TAU * 2 * f * u));
-      }
-      return 0.55 * s;
-    });
-
-    // Radio key-up click
-    buffers.rclick = make(0.05, function (t) {
-      return env(t, 0.0005, 0.008) * (0.7 * (Math.random() * 2 - 1) + 0.2 * Math.sin(TAU * 1800 * t));
-    });
-
-    // Squelch tail
-    buffers.rsquelch = make(0.22, function (t) {
-      var e = env(t, 0.005, 0.06);
-      return e * (0.55 * noise(0.8) * (1 - t / 0.22) + 0.15 * Math.sin(TAU * 320 * t));
-    });
-
-    // Scratchy "voice burble" — band-limited noise, not spoken lines
-    buffers.rchatter = make(1.4, function (t) {
-      var gate = (t < 0.05 ? t / 0.05 : t > 1.2 ? Math.max(0, (1.4 - t) / 0.2) : 1);
-      var form = 0.55 + 0.45 * Math.sin(TAU * (3.2 + 1.1 * Math.sin(TAU * 0.7 * t)) * t);
-      var buzz = Math.sin(TAU * (220 + 80 * Math.sin(TAU * 5 * t)) * t);
-      return gate * form * (0.28 * noise(0.35) + 0.12 * buzz);
+  /* ---------------------------------------------------------------- ambience + radio chatter */
+  function startBed() {
+    if (bedSrc || muted || !unlocked) return;
+    fetchBuf(BED).then(function (b) {
+      if (!b || bedSrc || muted || !unlocked) return;
+      bedSrc = ctx.createBufferSource();
+      bedSrc.buffer = b; bedSrc.loop = true;
+      var g = ctx.createGain(); g.gain.value = 0;
+      g.gain.setTargetAtTime(BED_GAIN, ctx.currentTime, 1.5);   // fade in
+      bedSrc.connect(g); g.connect(ambBus);
+      bedSrc.start();
     });
   }
-
-  function playBuf(name, dest, opts) {
-    opts = opts || {};
-    if (!unlocked || muted || !buffers[name]) return;
-    ensureCtx();
-    if (ctx.state === 'suspended') ctx.resume();
-    var src = ctx.createBufferSource();
-    src.buffer = buffers[name];
-    if (opts.rate) src.playbackRate.value = opts.rate;
-    var g = ctx.createGain();
-    g.gain.value = opts.gain == null ? 1 : opts.gain;
-    src.connect(g);
-    g.connect(dest || sfxGain);
-    try { src.start(); } catch (e) {}
+  function stopBed() { if (bedSrc) { try { bedSrc.stop(); } catch (e) {} bedSrc = null; } }
+  function scheduleChatter(first) {
+    clearTimeout(chatterTimer);
+    if (muted || !unlocked) return;
+    var wait = first ? 20000 + Math.random() * 20000 : CHATTER_MIN_MS + Math.random() * (CHATTER_MAX_MS - CHATTER_MIN_MS);
+    chatterTimer = setTimeout(playConvo, wait);
   }
-
-  function startHiss() {
-    if (!ctx || hissNodes) return;
-    // Continuous quiet radio hiss bed
-    var sr = ctx.sampleRate;
-    var len = sr * 2;
-    var buf = ctx.createBuffer(1, len, sr);
-    var d = buf.getChannelData(0);
-    var lp = 0;
-    for (var i = 0; i < len; i++) {
-      lp += 0.12 * ((Math.random() * 2 - 1) - lp);
-      d[i] = lp * 0.35;
-    }
-    var src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.loop = true;
-    var filter = ctx.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 1400;
-    filter.Q.value = 0.7;
-    var g = ctx.createGain();
-    g.gain.value = 0.22;
-    src.connect(filter);
-    filter.connect(g);
-    g.connect(radioGain);
-    try { src.start(); } catch (e) {}
-    hissNodes = { src: src, g: g };
+  function playConvo() {
+    if (muted || !unlocked || talking || document.hidden) { scheduleChatter(false); return; }
+    var i; do { i = Math.floor(Math.random() * CONVOS.length); } while (CONVOS.length > 1 && i === lastConvo);
+    lastConvo = i;
+    var lines = CONVOS[i];
+    var paths = lines.concat([FX.click]).concat(FX.squelch);
+    Promise.all(paths.map(fetchBuf)).then(function () {
+      if (muted || !unlocked) { scheduleChatter(false); return; }
+      talking = true;
+      var t = ctx.currentTime + 0.05;
+      lines.forEach(function (p) {
+        var b = buffers[p]; if (!b) return;
+        at(FX.click, t, RADIO_GAIN * 0.8);
+        at(p, t + 0.08, RADIO_GAIN);
+        t += 0.08 + b.duration;
+        at(pick(FX.squelch), t, RADIO_GAIN * 0.7);
+        t += 0.6 + Math.random() * 0.5;   // gap before the reply
+      });
+      setTimeout(function () { talking = false; scheduleChatter(false); }, (t - ctx.currentTime) * 1000);
+    });
   }
-
-  function stopHiss() {
-    if (!hissNodes) return;
-    try { hissNodes.src.stop(); } catch (e) {}
-    hissNodes = null;
+  function at(path, when, gain) {
+    var b = buffers[path]; if (!b || muted) return;
+    var src = ctx.createBufferSource(), g = ctx.createGain();
+    src.buffer = b; g.gain.value = gain; src.connect(g); g.connect(ambBus); src.start(when);
   }
+  function ambienceOn() { startBed(); scheduleChatter(true); }
+  function ambienceOff() { stopBed(); clearTimeout(chatterTimer); }
 
-  function scheduleRadio() {
-    clearTimeout(radioTimer);
-    if (!unlocked || muted) return;
-    function tick() {
-      if (!unlocked || muted) return;
-      // Occasional key-up + chatter burble + squelch (Dispatch–R55 flavor, no voice IP)
-      playBuf('rclick', radioGain, { gain: 0.45 });
-      setTimeout(function () {
-        playBuf('rchatter', radioGain, {
-          gain: 0.35 + Math.random() * 0.25,
-          rate: 0.85 + Math.random() * 0.35
-        });
-      }, 40 + Math.random() * 80);
-      setTimeout(function () {
-        playBuf('rsquelch', radioGain, { gain: 0.4 });
-      }, 900 + Math.random() * 500);
-      var next = 12000 + Math.random() * 22000;
-      radioTimer = setTimeout(tick, next);
-    }
-    radioTimer = setTimeout(tick, 4000 + Math.random() * 6000);
-  }
-
-  function applyMuteVolume() {
-    if (!master) return;
-    master.gain.value = muted ? 0 : volume;
-    if (muted) {
-      stopHiss();
-      clearTimeout(radioTimer);
-      radioTimer = null;
-    } else if (unlocked) {
-      startHiss();
-      scheduleRadio();
-    }
-  }
-
+  /* ---------------------------------------------------------------- unlock + controls */
   function unlock() {
-    ensureCtx();
-    if (!ctx) return Promise.resolve(false);
-    return ctx.resume().then(function () {
-      unlocked = true;
-      buildBuffers();
-      applyMuteVolume();
-      // silent buffer poke for iOS
-      playBuf('snap', sfxGain, { gain: 0.0001 });
-      updateUI();
-      return true;
-    }).catch(function () { return false; });
+    if (unlocked) return;
+    if (!makeCtx()) return;
+    var p = ctx.resume ? ctx.resume() : null;
+    // a silent one-sample buffer, played inside the gesture, is what actually unlocks iOS
+    try { var b = ctx.createBuffer(1, 1, 22050), s = ctx.createBufferSource(); s.buffer = b; s.connect(ctx.destination); s.start(0); } catch (e) {}
+    unlocked = true;
+    Object.keys(SFX).forEach(function (k) { SFX[k].forEach(fetchBuf); });
+    if (!muted) ambienceOn();
+    updateUI();
+    if (p && p.catch) p.catch(function () {});
   }
+  function setMuted(m) {
+    muted = !!m; persist(); applyGain();
+    if (muted) ambienceOff(); else if (unlocked) ambienceOn();
+    updateUI();
+  }
+  function setVolume(v) { volume = Math.max(0, Math.min(1, v)); persist(); applyGain(); updateUI(); }
 
   function updateUI() {
-    var bar = document.getElementById('sound-bar');
+    var hint = document.getElementById('sound-hint');
+    if (hint) hint.hidden = unlocked;
     var btn = document.getElementById('btn-snd');
-    var panel = document.getElementById('snd-panel');
-    var muteEl = document.getElementById('set-mute');
-    var volEl = document.getElementById('set-vol');
-    var volVal = document.getElementById('set-vol-val');
-    if (bar) {
-      if (!unlocked) {
-        bar.hidden = false;
-        bar.textContent = 'Sound is paused. Tap here to turn it on.';
-      } else if (muted) {
-        bar.hidden = false;
-        bar.textContent = 'Sound is muted. Tap to unmute.';
-      } else {
-        bar.hidden = true;
-      }
-    }
-    if (btn) {
-      btn.classList.toggle('muted', muted || !unlocked);
-      btn.setAttribute('aria-pressed', muted ? 'true' : 'false');
-    }
-    if (muteEl) muteEl.checked = muted;
-    if (volEl) volEl.value = String(Math.round(volume * 100));
-    if (volVal) volVal.textContent = String(Math.round(volume * 100));
-    if (panel && muteEl) { /* leave open state alone */ }
+    if (btn) { btn.classList.toggle('muted', muted || !unlocked); btn.setAttribute('aria-pressed', muted ? 'true' : 'false'); }
+    var m = document.getElementById('set-mute'); if (m) m.checked = muted;
+    var v = document.getElementById('set-vol'); if (v) v.value = String(Math.round(volume * 100));
+    var vv = document.getElementById('set-vol-val'); if (vv) vv.textContent = String(Math.round(volume * 100));
   }
-
-  function wireUI() {
-    loadSettings();
-    var bar = document.getElementById('sound-bar');
-    if (bar) {
-      bar.addEventListener('click', function () {
-        if (!unlocked) unlock();
-        else if (muted) { muted = false; saveSettings(); applyMuteVolume(); updateUI(); }
-      });
-    }
-    var btn = document.getElementById('btn-snd');
-    var panel = document.getElementById('snd-panel');
+  function wire() {
+    load();
+    // first gesture anywhere unlocks; capture phase, never cancels the event, never changes layout
+    function first() { unlock(); document.removeEventListener('pointerdown', first, true); document.removeEventListener('keydown', first, true); }
+    document.addEventListener('pointerdown', first, true);
+    document.addEventListener('keydown', first, true);
+    var btn = document.getElementById('btn-snd'), panel = document.getElementById('snd-panel');
     if (btn && panel) {
-      btn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (!unlocked) { unlock(); return; }
-        panel.hidden = !panel.hidden;
-        btn.setAttribute('aria-expanded', panel.hidden ? 'false' : 'true');
-      });
-      document.addEventListener('click', function () {
-        if (panel && !panel.hidden) {
-          panel.hidden = true;
-          btn.setAttribute('aria-expanded', 'false');
-        }
-      });
+      btn.addEventListener('click', function (e) { e.stopPropagation(); panel.hidden = !panel.hidden; btn.setAttribute('aria-expanded', String(!panel.hidden)); });
       panel.addEventListener('click', function (e) { e.stopPropagation(); });
+      document.addEventListener('click', function () { if (!panel.hidden) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
     }
-    var muteEl = document.getElementById('set-mute');
-    var volEl = document.getElementById('set-vol');
-    if (muteEl) {
-      muteEl.addEventListener('change', function () {
-        muted = !!muteEl.checked;
-        saveSettings();
-        applyMuteVolume();
-        updateUI();
-      });
-    }
-    if (volEl) {
-      volEl.addEventListener('input', function () {
-        volume = Math.max(0, Math.min(1, (+volEl.value || 0) / 100));
-        saveSettings();
-        applyMuteVolume();
-        updateUI();
-      });
-    }
-    // First gesture anywhere unlocks (iOS policy)
-    function once() {
-      unlock();
-      document.removeEventListener('pointerdown', once, true);
-    }
-    document.addEventListener('pointerdown', once, true);
+    var m = document.getElementById('set-mute'); if (m) m.addEventListener('change', function () { setMuted(m.checked); });
+    var v = document.getElementById('set-vol'); if (v) v.addEventListener('input', function () { setVolume((+v.value || 0) / 100); });
+    document.addEventListener('visibilitychange', function () {
+      if (!ctx) return;
+      if (document.hidden) { if (ctx.suspend) ctx.suspend(); } else if (unlocked && ctx.resume) ctx.resume();
+    });
     updateUI();
   }
 
-  var API = {
-    unlock: unlock,
-    slap: function () { playBuf('slap', sfxGain, { gain: 0.85, rate: 0.92 + Math.random() * 0.16 }); },
-    snap: function () { playBuf('snap', sfxGain, { gain: 0.7, rate: 0.95 + Math.random() * 0.1 }); },
-    bounce: function () { playBuf('bounce', sfxGain, { gain: 0.75 }); },
-    flip: function () { playBuf('flip', sfxGain, { gain: 0.8 }); },
-    dealOne: function (i) { playBuf('deal', sfxGain, { gain: 0.55, rate: 0.9 + (i % 5) * 0.03 }); },
-    shuffle: function () { playBuf('shuffle', sfxGain, { gain: 0.75 }); },
-    win: function () { playBuf('win', sfxGain, { gain: 0.9 }); },
-    setMuted: function (m) { muted = !!m; saveSettings(); applyMuteVolume(); updateUI(); },
-    isMuted: function () { return muted; },
-    isUnlocked: function () { return unlocked; },
-    wireUI: wireUI,
-    updateUI: updateUI
+  global.DDSound = {
+    deal: function (i) { play(SFX.deal[(i || 0) % SFX.deal.length], sfxBus, SFX_GAIN.deal, 0.96 + Math.random() * 0.08); },
+    place: function () { play(pick(SFX.place), sfxBus, SFX_GAIN.place, 0.95 + Math.random() * 0.1); },
+    flip: function () { play(pick(SFX.flip), sfxBus, SFX_GAIN.flip); },
+    bounce: function () { play(SFX.bounce[0], sfxBus, SFX_GAIN.bounce); },
+    shuffle: function () { play(SFX.shuffle[0], sfxBus, SFX_GAIN.shuffle); },
+    win: function () { play(SFX.win[0], sfxBus, SFX_GAIN.win); },
+    unlock: unlock, setMuted: setMuted, setVolume: setVolume,
+    status: function () { return { unlocked: unlocked, muted: muted, volume: volume, ctx: ctx ? ctx.state : null, loaded: Object.keys(buffers).length, bed: !!bedSrc }; },
+    _playChatterNow: function () { clearTimeout(chatterTimer); playConvo(); }
   };
-
-  global.DDSound = API;
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wireUI);
-  else wireUI();
-})(typeof window !== 'undefined' ? window : this);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire); else wire();
+})(window);

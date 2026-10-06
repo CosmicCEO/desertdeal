@@ -4,7 +4,7 @@ A single-player Klondike solitaire with a worn paper deck, card physics, and loc
 
 Flavor: a dog-eared 52-card pack on weathered planks (grain, knots, sun bleach, flush bolt heads). Coffee stains, clipped corners. Drag, fling, flip. Pause mid-deal and pick it up later.
 
-**Status:** Wave 1 playable scaffold — cards, picnic table, phone layout scaled on Mac, drag/fling physics, Klondike deal + stock flip + basic moves, synth card SFX + radio bed. Save/undo still TODO.
+**Status:** Wave 1 playable — tap-to-move + drag/fling, full Klondike (Draw 3 / Draw 1), undo, autosave/resume, stats, Kenney CC0 card sounds + Desert Ranger radio chatter. Verified end-to-end with `dev/test_play.py`.
 
 **Phone portrait layout on every device** — Mac/desktop scales the same board with the window.
 
@@ -24,7 +24,14 @@ Static HTML + CSS + vanilla JS. No build step. No PHP/MySQL on day one. Stats an
 cd /path/to/desertdeal   # repo root (index.html here)
 python3 -m http.server 8899
 # open http://127.0.0.1:8899/
-# or http://127.0.0.1:8899/?play=1 to skip home
+# or http://127.0.0.1:8899/?play=1 to skip home (resumes a saved deal), ?seed=43&draw=1 for a fixed deal
+```
+
+## Test (play a full game in a real browser)
+```bash
+python3 -m http.server 8899 &              # repo root
+pip install playwright && playwright install chromium
+python3 dev/test_play.py                   # phone 390x844 touch + desktop 1440x900 mouse; exit 0 = pass
 ```
 
 ## Rights

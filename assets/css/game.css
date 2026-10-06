@@ -17,6 +17,7 @@
   --card-w: 48px;
   --card-h: 68px;
   --fan-y: 16px;
+  --fan-down: 8px;
   --waste-fan: 14px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bot: env(safe-area-inset-bottom, 0px);
@@ -44,7 +45,8 @@ button, a, input { touch-action: manipulation; }
 
 /* —— shared paper UI (borrowed from Bandit/Ranger) —— */
 .screen { max-width: 520px; margin: 0 auto; padding: 14px 16px calc(40px + var(--safe-bot)); }
-.screen.play { max-width: none; padding: 0; min-height: 100vh; display: flex; flex-direction: column; }
+.screen.play { max-width: none; padding: 0; height: calc(100vh - var(--safe-top) - var(--safe-bot)); height: calc(100dvh - var(--safe-top) - var(--safe-bot)); display: flex; flex-direction: column; overflow: hidden; }
+body[data-screen="screen-play"] { overflow: hidden; overscroll-behavior: none; }
 .title {
   font-family: Bungee, sans-serif; font-weight: normal; color: var(--terra);
   font-size: 3.1rem; line-height: .9; margin: 18px 0 6px; text-align: center;
@@ -97,12 +99,13 @@ button, a, input { touch-action: manipulation; }
 .stats-row small { display: block; font: .62rem Bungee, sans-serif; color: var(--sage); }
 .stats-row b { font: 1.35rem Bangers, Bungee, sans-serif; letter-spacing: .5px; }
 
-.sound-bar {
-  display: block; width: calc(100% - 32px); max-width: 488px; margin: 10px auto 0;
-  border: 2px solid var(--ink); border-radius: 14px; background: var(--mari); color: var(--ink);
-  font: 700 1rem Nunito, sans-serif; padding: 10px 14px; min-height: 48px;
-  box-shadow: 0 4px 0 var(--ink); text-align: center; cursor: pointer;
+.sound-hint {
+  position: fixed; left: 50%; bottom: calc(10px + var(--safe-bot)); transform: translateX(-50%); z-index: 30;
+  pointer-events: none; white-space: nowrap;
+  background: rgba(255,250,240,.92); border: 1.5px solid var(--ink); border-radius: 999px;
+  font: 700 .8rem Nunito, sans-serif; color: var(--ink2); padding: 5px 12px;
 }
+body[data-screen="screen-play"] .sound-hint { display: none; }
 
 /* —— play header —— */
 .top {
@@ -236,7 +239,6 @@ button, a, input { touch-action: manipulation; }
   position: absolute; inset: 0; z-index: 10;
   padding: 16px 10px 12px;
   display: flex; flex-direction: column; gap: 16px;
-  pointer-events: none; /* piles opt-in */
 }
 .row { display: flex; gap: 6px; align-items: flex-start; }
 .top-row .spacer { flex: 1; min-width: 12px; }
@@ -266,6 +268,8 @@ button, a, input { touch-action: manipulation; }
 
 /* —— cards —— */
 .card-el {
+  pointer-events: auto;
+  transition: left .22s cubic-bezier(.2,.9,.3,1), top .22s cubic-bezier(.2,.9,.3,1);
   position: absolute; left: 0; top: 0;
   width: var(--card-w); height: var(--card-h);
   border-radius: 7px 8px 6px 8px / 8px 6px 8px 7px;
@@ -308,9 +312,11 @@ button, a, input { touch-action: manipulation; }
 .card-el.faceup .face { visibility: visible; }
 .card-el.faceup .back { visibility: hidden; }
 
-.card-el.flipping {
-  transition: transform .28s ease;
-}
+.card-el.flipping { transition: left .22s, top .22s, transform .12s ease; }
+.card-el.no-anim { transition: none !important; }
+.card-el.nope { animation: nope .35s; }
+@keyframes nope { 25% { transform: translateX(-4px) rotate(-2deg); } 60% { transform: translateX(4px) rotate(1.5deg); } 100% { transform: none; } }
+.icon-btn:disabled { opacity: .45; cursor: default; }
 
 .card-el .corner {
   position: absolute; left: 6px; top: 5px; line-height: 1;
@@ -362,7 +368,6 @@ button, a, input { touch-action: manipulation; }
 }
 
 .card-el.dragging {
-  z-index: 90 !important;
   filter: drop-shadow(4px 8px 6px rgba(30,18,10,.4));
   transition: none !important;
 }
@@ -401,7 +406,14 @@ button, a, input { touch-action: manipulation; }
 
 @media (prefers-reduced-motion: reduce) {
   .ant-a, .ant-b { animation: none; opacity: .5; }
-  .card-el.deal-in, .card-el.snapping, .card-el.bouncing, .card-el.flipping {
-    animation: none; transition: opacity .15s;
+  .card-el, .card-el.deal-in, .card-el.snapping, .card-el.bouncing, .card-el.flipping {
+    animation: none; transition: none;
   }
+}
+
+/* Narrow phones: keep every header control on screen (the board itself shows the name). */
+@media (max-width: 430px) {
+  .top { gap: 5px; padding-left: max(8px, var(--safe-l)); padding-right: max(8px, var(--safe-r)); }
+  .top .logo { font-size: 0; flex: 1; }
+  .top .icon-btn, .top .snd-btn { width: 42px; height: 42px; }
 }

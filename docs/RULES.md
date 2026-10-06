@@ -14,7 +14,7 @@ Classic **Klondike** solitaire with a standard 52-card deck. Plain English for p
 - **Empty tableau column:** only a **King** (or a packed run starting with a King) may fill it.
 - **Stock:** default is **Draw 3** (three cards to the waste per tap; you play the top waste card). **Draw 1** is an option for an easier game.
 - When the stock is empty, recycle the waste back to the stock (face down, order preserved as usual). Each recycle costs score (below).
-- **Undo:** one undo of the last move is allowed (Wave 1).
+- **Undo:** step back through your moves (Wave 1 build allows more than one; easy to cap at one if preferred).
 
 ## Win
 All 52 cards on the four foundations (Ace through King in each suit).
