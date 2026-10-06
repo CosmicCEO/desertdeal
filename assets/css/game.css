@@ -1,10 +1,6 @@
 /* Desert Deal — picnic table + worn paper cards.
    Palette/fonts match Desert Ranger & Desert Bandit.
-   Local @font-face when assets/fonts are present; Google Fonts as fallback. */
-@font-face { font-family: Bungee;  src: local("Bungee"), url(../fonts/Bungee-Regular.ttf); font-display: swap; }
-@font-face { font-family: Nunito;  src: local("Nunito"), url(../fonts/Nunito.ttf); font-weight: 200 1000; font-display: swap; }
-@font-face { font-family: Caveat;  src: local("Caveat"), url(../fonts/Caveat.ttf); font-weight: 400 700; font-display: swap; }
-@font-face { font-family: Bangers; src: local("Bangers"), url(../fonts/Bangers-Regular.ttf); font-display: swap; }
+   Fonts (Bungee, Nunito, Caveat, Bangers) come from Google Fonts in index.html. */
 
 :root {
   --cream: #F4ECD8; --paper: #fffaf0; --ink: #3A2A1E; --ink2: #6d4a2f; --ink3: #5a3d26;

@@ -1,5 +1,3 @@
-Optional local copies of Bungee, Nunito, Caveat, Bangers (from Desert Ranger / Bandit pitch fonts).
-Game loads Google Fonts in index.html; @font-face in game.css falls back to these files when present.
-Do not commit .ttf (see .gitignore). Symlink from sibling:
-  ln -sf /path/to/boardgame/pitch/fonts/*.ttf assets/fonts/
-
+Fonts (Bungee, Nunito, Caveat, Bangers — same as Desert Ranger / Bandit) load from Google Fonts in index.html.
+No @font-face points here any more: the .ttf files are gitignored, and a same-name local @font-face that 404s
+overrides the Google face and drops the page to system fonts. Local .ttf copies in this folder are unused.
