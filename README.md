@@ -1,5 +1,11 @@
 # Desert Deal
 
+<p align="center"><em>A card game in the desert-ranger theme, now playable on any phone.</em></p>
+
+<p align="center"><strong><a href="https://www.jprice.net/desertdeal/">Play Desert Deal</a></strong> &nbsp;·&nbsp; <a href="https://www.jprice.net/desertdeal/about.html">About the game</a></p>
+
+<br>
+
 A single-player Klondike solitaire with a worn paper deck, card physics, and local save/stats — dealt on a **worn wooden picnic table** in the Anza-Borrego desert family of [Desert Ranger](https://github.com/CosmicCEO/desertranger) and [Desert Bandit](https://github.com/CosmicCEO/desertbandit).
 
 Flavor: a dog-eared 52-card pack on weathered planks (grain, knots, sun bleach, flush bolt heads). Coffee stains, clipped corners. Drag, fling, flip. Pause mid-deal and pick it up later.
